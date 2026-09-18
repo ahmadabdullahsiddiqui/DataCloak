@@ -8,12 +8,18 @@
 
 import { detect, aggregate, applyReplacements, keyOf } from './detectors.js';
 import { parseDocx, buildDocx } from './docx.js';
+import { parseXlsx, buildXlsx } from './xlsx.js';
+
+const MIME = {
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+};
 
 // Kept in the worker so large documents aren't cloned back and forth on every
 // edit. Cleared on reset.
 let currentText = '';
 let currentFindings = [];
-let currentModel = null;   // DOCX model (null for plain text)
+let currentModel = null;   // DOCX/XLSX model (null for plain text)
 let currentFormat = 'txt';
 
 self.addEventListener('message', (e) => { handle(e.data || {}); });
@@ -22,9 +28,12 @@ async function handle(msg) {
   try {
     switch (msg.cmd) {
       case 'analyze': {
-        currentFormat = msg.format === 'docx' ? 'docx' : 'txt';
+        currentFormat = (msg.format === 'docx' || msg.format === 'xlsx') ? msg.format : 'txt';
         if (currentFormat === 'docx') {
           currentModel = await parseDocx(msg.buffer);
+          currentText = currentModel.text;
+        } else if (currentFormat === 'xlsx') {
+          currentModel = await parseXlsx(msg.buffer);
           currentText = currentModel.text;
         } else {
           currentModel = null;
@@ -39,13 +48,14 @@ async function handle(msg) {
         const rows = Array.isArray(msg.rows) ? msg.rows : [];
         const byKey = new Map(rows.map((r) => [keyOf(r.type, r.value), r]));
         const preview = applyReplacements(currentText, currentFindings, byKey);
-        if (currentFormat === 'docx' && currentModel) {
-          const bytes = await buildDocx(currentModel, currentFindings, byKey);
+        if ((currentFormat === 'docx' || currentFormat === 'xlsx') && currentModel) {
+          const bytes = currentFormat === 'docx'
+            ? await buildDocx(currentModel, currentFindings, byKey)
+            : await buildXlsx(currentModel, currentFindings, byKey);
           self.postMessage(
             {
-              ok: true, type: 'applied', binary: true, ext: 'docx',
-              mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-              output: bytes, preview,
+              ok: true, type: 'applied', binary: true, ext: currentFormat,
+              mime: MIME[currentFormat], output: bytes, preview,
             },
             [bytes.buffer]
           );

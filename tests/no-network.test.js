@@ -54,7 +54,8 @@ test('processing performs no network calls at runtime', async () => {
 });
 
 test('processing sources contain no network APIs', async () => {
-  const files = ['../docs/detectors.js', '../docs/worker.js', '../docs/zip.js', '../docs/docx.js'];
+  const files = ['../docs/detectors.js', '../docs/worker.js', '../docs/zip.js',
+    '../docs/ooxml.js', '../docs/docx.js', '../docs/xlsx.js'];
   const forbidden = [
     /\bfetch\s*\(/,
     /XMLHttpRequest/,

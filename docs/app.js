@@ -8,7 +8,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = '0.2.4';
+  const APP_VERSION = '0.3.0';
 
   // File size is intentionally unlimited (processing is fully local).
   const MAX_BYTES = Infinity;
@@ -100,8 +100,10 @@
     const isTxt = /\.txt$/i.test(file.name) || file.type === 'text/plain';
     const isDocx = /\.docx$/i.test(file.name) ||
       file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-    if (!isTxt && !isDocx) {
-      showToast('Unterstützt werden .txt und .docx.');
+    const isXlsx = /\.xlsx$/i.test(file.name) ||
+      file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    if (!isTxt && !isDocx && !isXlsx) {
+      showToast('Unterstützt werden .txt, .docx und .xlsx.');
       return;
     }
 
@@ -109,6 +111,8 @@
     try {
       if (isDocx) {
         payload = { format: 'docx', buffer: await file.arrayBuffer() }; // local read, no upload
+      } else if (isXlsx) {
+        payload = { format: 'xlsx', buffer: await file.arrayBuffer() };
       } else {
         payload = { format: 'txt', text: await file.text() };
       }
@@ -155,8 +159,8 @@
     w.onerror = () => { showToast('Analyse fehlgeschlagen.'); resetAnalyzeBtn(); };
 
     const msg = { cmd: 'analyze', format: payload.format, options: { mode } };
-    if (payload.format === 'docx') msg.buffer = payload.buffer; // structured-clone copy: keeps
-    else msg.text = payload.text;                               // the original usable for re-analyze
+    if (payload.buffer) msg.buffer = payload.buffer; // structured-clone copy: keeps
+    else msg.text = payload.text;                    // the original usable for re-analyze
     w.postMessage(msg);
   }
 

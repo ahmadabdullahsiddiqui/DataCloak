@@ -233,7 +233,7 @@ function findPersonNames(text) {
     const b = toks[i + 1];
     if (!isUpper(a.value) || !isUpper(b.value)) continue;
     if (!FIRST_NAMES.has(a.value.toLowerCase())) continue;
-    if (!/^\s+$/.test(text.slice(a.end, b.start))) continue; // adjacent, no punctuation
+    if (!/^[ \t]+$/.test(text.slice(a.end, b.start))) continue; // same line, no punctuation/newline
     out.push({ value: text.slice(a.start, b.end), start: a.start, end: b.end });
   }
   return out;

@@ -104,7 +104,7 @@ offsets stay valid as the string length changes.
 | ------ | --- | -------------------------------------------------------------------- |
 | TXT    | ✅  | Read as text; detect; replace; re-encode UTF-8.                      |
 | DOCX   | ✅  | In-house ZIP parse (`zip.js`) + Compression Streams; rewrite `<w:t>` runs across body/headers/footers/notes, cross-run aware; re-zip. No library. |
-| XLSX   | ⏳  | Unzip; walk every worksheet + shared strings; leave formulas intact. |
+| XLSX   | ✅  | Shared OOXML engine (`ooxml.js`): rewrite `<t>` text in `sharedStrings.xml` + worksheet inline strings; numeric `<v>` cells and `<f>` formulas untouched. |
 | PDF    | ⏳  | Text-based PDFs only; **true redaction** — remove/replace the text in the output, not a black box over still-present text. Scanned/OCR PDFs: show a clear "not yet supported locally" message; **no external OCR**. |
 
 ## 7. Dependencies

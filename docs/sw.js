@@ -7,7 +7,7 @@
  * HTML/JS/CSS shell is network-first (so a fixed build lands on the next online
  * load); fonts/icons are cache-first.
  */
-const CACHE = 'datacloak-v7';
+const CACHE = 'datacloak-v8';
 const ASSETS = [
   './',
   './index.html',
@@ -15,7 +15,9 @@ const ASSETS = [
   './worker.js',
   './detectors.js',
   './zip.js',
+  './ooxml.js',
   './docx.js',
+  './xlsx.js',
   './styles.css',
   './manifest.json',
   './icon.svg',

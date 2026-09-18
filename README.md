@@ -31,13 +31,15 @@ document.
 
 ## Status
 
-**`.txt` and `.docx` supported.** The full pipeline (read → detect →
-review/map → replace → download → optional report) works end-to-end. DOCX keeps
-the original formatting: only the text inside `<w:t>` runs (document body,
-headers, footers, notes) is rewritten; PII split across adjacent runs is handled.
-The ZIP container is parsed in-house and (de)compressed with the browser's
-built-in Compression Streams — **no third-party library, no CDN**. There is no
-file-size limit. `PDF` and `XLSX` are next. See [ARCHITECTURE.md](ARCHITECTURE.md).
+**`.txt`, `.docx` and `.xlsx` supported.** The full pipeline (read → detect →
+review/map → replace → download → optional report) works end-to-end. Office
+formats keep their original structure: only run text is rewritten — `<w:t>` runs
+for Word (body, headers, footers, notes; cross-run aware) and `<t>` text for
+Excel (shared strings + worksheet inline strings), leaving numeric cells and
+formulas untouched. The ZIP container is parsed in-house and (de)compressed with
+the browser's built-in Compression Streams — **no third-party library, no CDN**.
+There is no file-size limit. **`PDF` is the remaining format** (true local
+redaction is a larger effort — see [ARCHITECTURE.md](ARCHITECTURE.md)).
 
 ## Detected data types
 
