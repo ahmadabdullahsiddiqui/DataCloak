@@ -8,7 +8,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = '0.3.0';
+  const APP_VERSION = '0.4.0';
 
   // File size is intentionally unlimited (processing is fully local).
   const MAX_BYTES = Infinity;
@@ -36,6 +36,9 @@
 
   // --- in-memory state (never persisted) ----------------------------
   let worker = null;
+  let pdfMod = null;    // lazily imported PDF engine
+  let usePdf = false;   // current file is a PDF (handled by pdfMod, not the worker)
+  let pdfPageCount = 0;
   let fileName = '';
   let rows = []; // [{type,label,value,replacement,count,active}]
   let outputText = '';
@@ -102,8 +105,9 @@
       file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     const isXlsx = /\.xlsx$/i.test(file.name) ||
       file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-    if (!isTxt && !isDocx && !isXlsx) {
-      showToast('Unterstützt werden .txt, .docx und .xlsx.');
+    const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
+    if (!isTxt && !isDocx && !isXlsx && !isPdf) {
+      showToast('Unterstützt werden .txt, .docx, .xlsx und .pdf.');
       return;
     }
 
@@ -113,6 +117,8 @@
         payload = { format: 'docx', buffer: await file.arrayBuffer() }; // local read, no upload
       } else if (isXlsx) {
         payload = { format: 'xlsx', buffer: await file.arrayBuffer() };
+      } else if (isPdf) {
+        payload = { format: 'pdf', buffer: await file.arrayBuffer() };
       } else {
         payload = { format: 'txt', text: await file.text() };
       }
@@ -140,6 +146,8 @@
 
   // --- analyze ------------------------------------------------------
   function analyze(payload) {
+    if (payload.format === 'pdf') { analyzePdf(payload); return; }
+    usePdf = false;
     const mode = currentMode();
     analyzeBtn.disabled = true;
     analyzeBtn.textContent = 'Analysiere…';
@@ -162,6 +170,27 @@
     if (payload.buffer) msg.buffer = payload.buffer; // structured-clone copy: keeps
     else msg.text = payload.text;                    // the original usable for re-analyze
     w.postMessage(msg);
+  }
+
+  async function analyzePdf(payload) {
+    usePdf = true;
+    const mode = currentMode();
+    analyzeBtn.disabled = true;
+    analyzeBtn.textContent = 'Analysiere…';
+    try {
+      if (!pdfMod) pdfMod = await import('./pdfredact.js');
+      // Pass a copy so the stored buffer stays usable for re-analysis.
+      const res = await pdfMod.analyze(payload.buffer.slice(0), { mode });
+      rows = res.rows || [];
+      pdfPageCount = res.pageCount || 0;
+      renderReview();
+      resetAnalyzeBtn();
+      stepReview.hidden = false;
+      stepReview.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } catch {
+      showToast('PDF konnte nicht verarbeitet werden.');
+      resetAnalyzeBtn();
+    }
   }
 
   function resetAnalyzeBtn() {
@@ -221,6 +250,7 @@
 
   // --- apply --------------------------------------------------------
   applyBtn.addEventListener('click', () => {
+    if (usePdf) { applyPdf(); return; }
     applyBtn.disabled = true;
     applyBtn.textContent = 'Erzeuge…';
     const w = getWorker();
@@ -246,6 +276,26 @@
     };
     w.postMessage({ cmd: 'apply', rows });
   });
+
+  async function applyPdf() {
+    applyBtn.disabled = true;
+    applyBtn.textContent = 'Erzeuge…';
+    try {
+      outputBytes = await pdfMod.build(rows);
+      outputMime = 'application/pdf';
+      outputExt = 'pdf';
+      outputText = `PDF sicher geschwärzt · ${pdfPageCount} Seite(n) · als Bild-PDF exportiert. ` +
+        `Der ursprüngliche Text ist im Ergebnis nicht mehr enthalten (nicht markier-/kopierbar).`;
+      preview.textContent = outputText;
+      resetApplyBtn();
+      mappingWarn.hidden = true;
+      stepResult.hidden = false;
+      stepResult.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } catch {
+      showToast('PDF-Erzeugung fehlgeschlagen.');
+      resetApplyBtn();
+    }
+  }
 
   function resetApplyBtn() {
     applyBtn.disabled = false;
@@ -306,6 +356,9 @@
   function reset() {
     // Terminate the worker so any document text it holds is discarded.
     if (worker) { worker.terminate(); worker = null; }
+    if (pdfMod) { try { pdfMod.reset(); } catch { /* */ } }
+    usePdf = false;
+    pdfPageCount = 0;
     rows = [];
     outputText = '';
     outputBytes = null;

@@ -56,10 +56,12 @@ warns you before export. Store and share it accordingly.
 
 ## Third-party dependencies
 
-- **MVP: none at runtime.** No third-party JavaScript is shipped for TXT
-  processing. Fonts are self-hosted.
-- Future document libraries (PDF/DOCX/XLSX) will be self-hosted (no CDN),
-  version-pinned, and reviewed for network behaviour, license and maintenance.
+- **TXT, DOCX, XLSX: none at runtime.** No third-party JavaScript is used; the
+  ZIP/OOXML handling is our own code and fonts are self-hosted.
+- **PDF: pdf.js** (Apache-2.0), version-pinned and **self-hosted** (no CDN), used
+  only to render pages and read text positions for redaction. It fetches only its
+  own same-origin assets (worker, fonts) and sends no document data anywhere;
+  CSP `connect-src 'self'` enforces this.
 
 ## Your controls
 

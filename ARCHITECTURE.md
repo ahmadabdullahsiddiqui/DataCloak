@@ -105,12 +105,13 @@ offsets stay valid as the string length changes.
 | TXT    | ✅  | Read as text; detect; replace; re-encode UTF-8.                      |
 | DOCX   | ✅  | In-house ZIP parse (`zip.js`) + Compression Streams; rewrite `<w:t>` runs across body/headers/footers/notes, cross-run aware; re-zip. No library. |
 | XLSX   | ✅  | Shared OOXML engine (`ooxml.js`): rewrite `<t>` text in `sharedStrings.xml` + worksheet inline strings; numeric `<v>` cells and `<f>` formulas untouched. |
-| PDF    | ⏳  | Text-based PDFs only; **true redaction** — remove/replace the text in the output, not a black box over still-present text. Scanned/OCR PDFs: show a clear "not yet supported locally" message; **no external OCR**. |
+| PDF    | ✅  | **Secure rasterised redaction** (`pdfredact.js` + vendored pdf.js, `imagepdf.js`): render each page locally, paint over PII runs, export an image-only PDF — the original text is gone, not merely covered. Runs on the main thread (pdf.js has its own worker). |
 
 ## 7. Dependencies
 
-**Runtime (MVP): none.** No third-party JavaScript ships in the TXT MVP. Fonts
-are self-hosted `.woff2`.
+**Runtime:** none for TXT/DOCX/XLSX (the ZIP/OOXML engine is our own code).
+**PDF** uses **pdf.js** (Apache-2.0), version-pinned and vendored under
+`docs/vendor/` — self-hosted, never from a CDN.
 
 **Dev only:** Node.js built-ins (`node:http`, `node:test`) for the preview
 server and tests. No packages are installed.

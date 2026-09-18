@@ -53,8 +53,15 @@ form-action 'none';
 frame-ancestors 'none'
 ```
 
+The PDF feature relaxes two directives (still **no `unsafe-eval`**):
+`script-src` also allows `'wasm-unsafe-eval'` (pdf.js image decoders) and
+`img-src`/`worker-src` also allow `blob:` (pdf.js worker/rendering). `connect-src`
+stays `'self'`, so pdf.js can fetch only same-origin assets (its worker and
+fonts) and no document data can be sent anywhere.
+
 Notes:
-- **No `unsafe-eval`.** Libraries requiring `eval` are rejected.
+- **No `unsafe-eval`.** Libraries requiring `eval` are rejected. pdf.js runs with
+  `isEvalSupported: false`.
 - `connect-src 'self'` limits any network call to the app's own origin (static
   assets); no third-party origin is permitted.
 - `style-src` allows `'unsafe-inline'` for pragmatic styling only; scripts do not.
@@ -91,8 +98,13 @@ with `worker.terminate()`.
 ## PDF redaction rule
 
 Anonymisation, pseudonymisation and **secure PDF redaction** are distinct. A
-black rectangle over text is *not* redaction: DataCloak removes/replaces the
-underlying text in the exported PDF so it cannot be copied or extracted.
+black rectangle over text is *not* redaction. DataCloak redacts PDFs by
+**rasterising**: each page is rendered locally with a vendored, self-hosted
+pdf.js, PII runs are painted over, and pages are re-exported as an image-only
+PDF. The output has **no text objects at all**, so the original text cannot be
+copied or extracted. Trade-off: the result is not selectable text and files are
+larger. Scanned/OCR-only PDFs are rendered and redacted the same way based on any
+embedded text layer; if a PDF has no text layer, nothing is detected to redact.
 
 ## Reporting
 

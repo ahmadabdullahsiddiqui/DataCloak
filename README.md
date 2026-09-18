@@ -38,8 +38,17 @@ for Word (body, headers, footers, notes; cross-run aware) and `<t>` text for
 Excel (shared strings + worksheet inline strings), leaving numeric cells and
 formulas untouched. The ZIP container is parsed in-house and (de)compressed with
 the browser's built-in Compression Streams — **no third-party library, no CDN**.
-There is no file-size limit. **`PDF` is the remaining format** (true local
-redaction is a larger effort — see [ARCHITECTURE.md](ARCHITECTURE.md)).
+There is no file-size limit.
+
+**`.pdf` is supported via secure rasterised redaction.** Each page is rendered
+locally with a self-hosted build of **pdf.js** (Apache-2.0, vendored — no CDN),
+every PII text run is painted over (with the replacement label), and the pages
+are exported as an **image-only PDF**. Because the output contains no text
+objects, the original text cannot be copied or extracted — this is real
+redaction, not a black box over still-present text. pdf.js fetches only its own
+same-origin assets (worker, fonts); no document data leaves the browser, and CSP
+`connect-src 'self'` enforces that. See [ARCHITECTURE.md](ARCHITECTURE.md) and
+[SECURITY.md](SECURITY.md).
 
 ## Detected data types
 

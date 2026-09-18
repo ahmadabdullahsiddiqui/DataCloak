@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; media-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; form-action 'none'; frame-ancestors 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self'; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; form-action 'none'; frame-ancestors 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>DataCloak — Lokale PII-Anonymisierung im Browser</title>
@@ -43,8 +43,9 @@
     <div id="dropzone" class="dropzone" tabindex="0" role="button"
          aria-label="Datei hierher ziehen oder zum Auswählen aktivieren">
       <p class="dz-title">Datei hierher ziehen oder <span class="link">durchsuchen</span></p>
-      <p class="dz-hint">Unterstützt: <b>.txt</b>, <b>.docx</b>, <b>.xlsx</b> · keine Größenbeschränkung · Einlesen erfolgt rein lokal</p>
-      <input type="file" id="fileInput" accept=".txt,.docx,.xlsx,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+      <p class="dz-hint">Unterstützt: <b>.txt</b>, <b>.docx</b>, <b>.xlsx</b>, <b>.pdf</b> · keine Größenbeschränkung · Einlesen erfolgt rein lokal</p>
+      <p class="dz-hint">PDF wird sicher geschwärzt (Seiten werden gerendert, Text wird tatsächlich entfernt – Ausgabe als Bild-PDF).</p>
+      <input type="file" id="fileInput" accept=".txt,.docx,.xlsx,.pdf,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
     </div>
     <p class="filemeta" id="fileMeta" hidden></p>
   </section>
@@ -107,7 +108,7 @@
 <footer class="foot">
   <p>DataCloak verarbeitet Dokumente lokal in Ihrem Browser – kein Upload, keine externe KI, keine Telemetrie.</p>
   <p class="footer-credit">Made and Designed with <span class="heart">❤</span> by Ahmad Abdullah</p>
-  <p class="footer-meta"><a href="privacy.html">Datenschutz</a> · v<span id="app-version">0.3.0</span></p>
+  <p class="footer-meta"><a href="privacy.html">Datenschutz</a> · v<span id="app-version">0.4.0</span></p>
 </footer>
 
 <div class="toast" id="toast" role="alert" aria-live="polite" hidden></div>
