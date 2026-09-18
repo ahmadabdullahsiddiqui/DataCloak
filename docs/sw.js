@@ -7,7 +7,7 @@
  * HTML/JS/CSS shell is network-first (so a fixed build lands on the next online
  * load); fonts/icons are cache-first.
  */
-const CACHE = 'datacloak-v5';
+const CACHE = 'datacloak-v6';
 const ASSETS = [
   './',
   './index.html',
@@ -51,33 +51,19 @@ self.addEventListener('fetch', (e) => {
   if (url.origin !== self.location.origin) return;
 
   const isDoc = req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html');
-  const isShell = isDoc || /\/(app\.js|worker\.js|detectors\.js|zip\.js|docx\.js|styles\.css)$/.test(url.pathname);
 
-  if (isShell) {
-    e.respondWith(
-      fetch(url.href, { cache: 'no-cache' })
-        .then((res) => {
-          if (res && res.status === 200) {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(isDoc ? './index.html' : req, copy)).catch(() => {});
-          }
-          return res;
-        })
-        .catch(() => caches.match(isDoc ? './index.html' : req).then((r) => r || caches.match('./')))
-    );
-    return;
-  }
-
+  // Network-first for EVERYTHING: every refresh behaves like a hard reset and
+  // loads the latest files when online. `cache: 'no-cache'` bypasses the browser
+  // HTTP cache and revalidates. The cache is only a fallback for offline use.
   e.respondWith(
-    caches.match(req).then((hit) => {
-      if (hit) return hit;
-      return fetch(req).then((res) => {
+    fetch(url.href, { cache: 'no-cache' })
+      .then((res) => {
         if (res && res.status === 200 && res.type === 'basic') {
           const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+          caches.open(CACHE).then((c) => c.put(isDoc ? './index.html' : req, copy)).catch(() => {});
         }
         return res;
-      }).catch(() => hit);
-    })
+      })
+      .catch(() => caches.match(isDoc ? './index.html' : req).then((r) => r || caches.match('./')))
   );
 });
