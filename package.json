@@ -1,6 +1,6 @@
 {
   "name": "datacloak",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "DataCloak — local, in-browser detection, anonymisation and pseudonymisation of personal data (PII) in documents. Fully client-side, no backend, no external AI, no telemetry. Deploys to GitHub Pages.",
   "type": "module",
   "scripts": {

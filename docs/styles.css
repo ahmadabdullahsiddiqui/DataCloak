@@ -119,6 +119,9 @@ body {
 
 /* table */
 .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+/* Keep the review list from making the page very long: cap its height and
+   scroll inside. The sticky <th> keeps the header visible while scrolling. */
+#step-review .table-wrap { max-height: 340px; overflow-y: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); }
 th { background: var(--bg); font-weight: 600; position: sticky; top: 0; }
