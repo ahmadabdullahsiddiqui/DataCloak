@@ -129,6 +129,14 @@ export const DETECTORS = [
     token: '[IP]',
     prefix: 'IP',
     regex: /\b(?:[A-Fa-f0-9]{1,4}:){2,7}[A-Fa-f0-9]{1,4}\b/g,
+    // Reject times like "10:27:24": a real (uncompressed) IPv6 has 8 groups, a
+    // compressed one contains "::", and hex forms contain a–f letters. A short,
+    // all-decimal, colon-separated run is a clock/duration, not an address.
+    validate: (v) => {
+      if (v.includes('::')) return true;
+      if (/[A-Fa-f]/.test(v)) return true;
+      return v.split(':').length === 8;
+    },
   },
   {
     type: 'steuerid',

@@ -32,6 +32,16 @@ test('IPv4 detection: any four 1-4 digit dot-separated groups', () => {
   assert.ok(values('n 1234.5678.9012.3456 m').includes('1234.5678.9012.3456'));
 });
 
+test('IPv6 detection ignores clock times', () => {
+  // times / durations must NOT be flagged as IP
+  assert.ok(!types('Uhrzeit 10:27:24 Uhr').includes('ipv6'));
+  assert.ok(!types('Dauer 1:02:03 lang').includes('ipv6'));
+  assert.ok(!types('Termin 08:30:00').includes('ipv6'));
+  // a real IPv6 is still detected
+  assert.ok(values('Host 2001:0db8:85a3:0000:0000:8a2e:0370:7334 up')
+    .includes('2001:0db8:85a3:0000:0000:8a2e:0370:7334'));
+});
+
 test('German phone detection', () => {
   assert.ok(types('Tel: +49 30 1234567').includes('phone'));
   assert.ok(types('Mobil 0170 1234567').includes('phone'));
