@@ -8,7 +8,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = '0.4.2';
+  const APP_VERSION = '0.5.0';
 
   // File size is intentionally unlimited (processing is fully local).
   const MAX_BYTES = Infinity;
@@ -131,8 +131,10 @@
     const isXlsx = /\.xlsx$/i.test(file.name) ||
       file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
     const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
-    if (!isTxt && !isDocx && !isXlsx && !isPdf) {
-      showToast('Unterstützt werden .txt, .docx, .xlsx und .pdf.');
+    const isZip = /\.zip$/i.test(file.name) ||
+      file.type === 'application/zip' || file.type === 'application/x-zip-compressed';
+    if (!isTxt && !isDocx && !isXlsx && !isPdf && !isZip) {
+      showToast('Unterstützt werden .txt, .docx, .xlsx, .pdf und .zip.');
       return;
     }
 
@@ -144,6 +146,8 @@
         payload = { format: 'xlsx', buffer: await file.arrayBuffer() };
       } else if (isPdf) {
         payload = { format: 'pdf', buffer: await file.arrayBuffer() };
+      } else if (isZip) {
+        payload = { format: 'zip', buffer: await file.arrayBuffer() };
       } else {
         payload = { format: 'txt', text: await file.text() };
       }

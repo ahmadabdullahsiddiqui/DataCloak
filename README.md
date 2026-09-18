@@ -50,6 +50,11 @@ same-origin assets (worker, fonts); no document data leaves the browser, and CSP
 `connect-src 'self'` enforces that. See [ARCHITECTURE.md](ARCHITECTURE.md) and
 [SECURITY.md](SECURITY.md).
 
+**`.zip` bundles are supported too:** every `.txt`/`.docx`/`.xlsx` inside the
+archive is processed with one shared replacement map (so the same value gets the
+same pseudonym across all files), then repackaged. Unsupported entries (images,
+`.pdf`) pass through unchanged.
+
 ## Detected data types
 
 E-mail, phone / mobile numbers, IBAN (with checksum), BIC, IPv4/IPv6, German

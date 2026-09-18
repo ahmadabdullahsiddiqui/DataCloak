@@ -49,9 +49,9 @@
     <div id="dropzone" class="dropzone" tabindex="0" role="button"
          aria-label="Datei hierher ziehen oder zum Auswählen aktivieren">
       <p class="dz-title">Datei hierher ziehen oder <span class="link">durchsuchen</span></p>
-      <p class="dz-hint">Unterstützt: <b>.txt</b>, <b>.docx</b>, <b>.xlsx</b>, <b>.pdf</b> · keine Größenbeschränkung · Einlesen erfolgt rein lokal</p>
-      <p class="dz-hint">PDF wird sicher geschwärzt (Seiten werden gerendert, Text wird tatsächlich entfernt – Ausgabe als Bild-PDF).</p>
-      <input type="file" id="fileInput" accept=".txt,.docx,.xlsx,.pdf,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+      <p class="dz-hint">Unterstützt: <b>.txt</b>, <b>.docx</b>, <b>.xlsx</b>, <b>.pdf</b>, <b>.zip</b> · keine Größenbeschränkung · Einlesen erfolgt rein lokal</p>
+      <p class="dz-hint">PDF wird sicher geschwärzt (als Bild-PDF). Im ZIP werden alle enthaltenen .txt/.docx/.xlsx verarbeitet; andere Dateien (inkl. PDF) bleiben unverändert.</p>
+      <input type="file" id="fileInput" accept=".txt,.docx,.xlsx,.pdf,.zip,text/plain,application/pdf,application/zip,application/x-zip-compressed,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
     </div>
     <p class="filemeta" id="fileMeta" hidden></p>
   </section>
@@ -114,7 +114,7 @@
 <footer class="foot">
   <p>DataCloak verarbeitet Dokumente lokal in Ihrem Browser – kein Upload, keine externe KI, keine Telemetrie.</p>
   <p class="footer-credit">Made and Designed with <span class="heart">❤</span> by Ahmad Abdullah</p>
-  <p class="footer-meta"><a href="privacy.html">Datenschutz</a> · v<span id="app-version">0.4.2</span></p>
+  <p class="footer-meta"><a href="privacy.html">Datenschutz</a> · v<span id="app-version">0.5.0</span></p>
 </footer>
 
 <div class="toast" id="toast" role="alert" aria-live="polite" hidden></div>

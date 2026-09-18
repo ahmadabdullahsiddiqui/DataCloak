@@ -9,11 +9,14 @@
 import { detect, aggregate, applyReplacements, keyOf } from './detectors.js';
 import { parseDocx, buildDocx } from './docx.js';
 import { parseXlsx, buildXlsx } from './xlsx.js';
+import { parseZip, buildZip } from './zipbundle.js';
 
 const MIME = {
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  zip: 'application/zip',
 };
+const BINARY_FORMATS = new Set(['docx', 'xlsx', 'zip']);
 
 // Kept in the worker so large documents aren't cloned back and forth on every
 // edit. Cleared on reset.
@@ -28,13 +31,16 @@ async function handle(msg) {
   try {
     switch (msg.cmd) {
       case 'analyze': {
-        currentFormat = (msg.format === 'docx' || msg.format === 'xlsx') ? msg.format : 'txt';
+        currentFormat = ['docx', 'xlsx', 'zip'].includes(msg.format) ? msg.format : 'txt';
         self.postMessage({ type: 'progress', value: 0.1, label: 'Einlesen…' });
         if (currentFormat === 'docx') {
           currentModel = await parseDocx(msg.buffer);
           currentText = currentModel.text;
         } else if (currentFormat === 'xlsx') {
           currentModel = await parseXlsx(msg.buffer);
+          currentText = currentModel.text;
+        } else if (currentFormat === 'zip') {
+          currentModel = await parseZip(msg.buffer);
           currentText = currentModel.text;
         } else {
           currentModel = null;
@@ -58,11 +64,12 @@ async function handle(msg) {
         const preview = full.length > PREVIEW_MAX
           ? full.slice(0, PREVIEW_MAX) + '\n… (Vorschau gekürzt – der Download enthält das vollständige Ergebnis)'
           : full;
-        if ((currentFormat === 'docx' || currentFormat === 'xlsx') && currentModel) {
+        if (BINARY_FORMATS.has(currentFormat) && currentModel) {
           self.postMessage({ type: 'progress', value: 0.6, label: 'Datei erzeugen…' });
-          const bytes = currentFormat === 'docx'
-            ? await buildDocx(currentModel, currentFindings, byKey)
-            : await buildXlsx(currentModel, currentFindings, byKey);
+          let bytes;
+          if (currentFormat === 'docx') bytes = await buildDocx(currentModel, currentFindings, byKey);
+          else if (currentFormat === 'xlsx') bytes = await buildXlsx(currentModel, currentFindings, byKey);
+          else bytes = await buildZip(currentModel, currentFindings, byKey);
           self.postMessage(
             {
               ok: true, type: 'applied', binary: true, ext: currentFormat,

@@ -106,6 +106,7 @@ offsets stay valid as the string length changes.
 | DOCX   | ✅  | In-house ZIP parse (`zip.js`) + Compression Streams; rewrite `<w:t>` runs across body/headers/footers/notes, cross-run aware; re-zip. No library. |
 | XLSX   | ✅  | Shared OOXML engine (`ooxml.js`): rewrite `<t>` text in `sharedStrings.xml` + worksheet inline strings; numeric `<v>` cells and `<f>` formulas untouched. |
 | PDF    | ✅  | **Secure rasterised redaction** (`pdfredact.js` + vendored pdf.js, `imagepdf.js`): render each page locally, paint over PII runs, export an image-only PDF — the original text is gone, not merely covered. Runs on the main thread (pdf.js has its own worker). |
+| ZIP    | ✅  | `zipbundle.js`: process every inner .txt/.docx/.xlsx with the existing engines, one shared replacement map (consistent pseudonyms across files), repackage. Unsupported entries (images, .pdf) pass through unchanged. |
 
 ## 7. Dependencies
 
