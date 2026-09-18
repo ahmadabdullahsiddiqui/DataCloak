@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="DataCloak">
+  <rect width="512" height="512" rx="96" fill="#0f172a"/>
+  <path d="M256 88l128 48v104c0 92-60 150-128 184-68-34-128-92-128-184V136l128-48z"
+        fill="none" stroke="#60a5fa" stroke-width="24" stroke-linejoin="round"/>
+  <rect x="196" y="238" width="120" height="96" rx="14" fill="#60a5fa"/>
+  <path d="M216 238v-26a40 40 0 0 1 80 0v26" fill="none" stroke="#60a5fa" stroke-width="20" stroke-linecap="round"/>
+  <circle cx="256" cy="282" r="12" fill="#0f172a"/>
+  <rect x="250" y="288" width="12" height="26" rx="6" fill="#0f172a"/>
+</svg>

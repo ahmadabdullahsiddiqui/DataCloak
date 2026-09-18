@@ -1,0 +1,14 @@
+{
+  "name": "DataCloak — Lokale PII-Anonymisierung",
+  "short_name": "DataCloak",
+  "description": "Erkennt, anonymisiert und pseudonymisiert personenbezogene Daten in Dokumenten – vollständig lokal im Browser.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "lang": "de",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

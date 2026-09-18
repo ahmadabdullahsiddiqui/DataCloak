@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; media-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; form-action 'none'; frame-ancestors 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DataCloak — Lokale PII-Anonymisierung im Browser</title>
+<meta name="description" content="DataCloak erkennt, anonymisiert und pseudonymisiert personenbezogene Daten in Dokumenten – vollständig lokal im Browser. Kein Upload, keine externe KI, keine Telemetrie.">
+<meta name="theme-color" content="#0f172a">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="bar">
+  <div class="bar-in">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">🛡️</span>
+      <h1>DataCloak</h1>
+    </div>
+    <div class="spacer"></div>
+    <div class="status" role="status" aria-label="Sicherheitsstatus">
+      <span class="chip ok" title="Es findet keine Netzwerkverarbeitung statt">Network processing: <b>Disabled</b></span>
+      <span class="chip ok" title="Es wird keine externe KI verwendet">External AI: <b>Disabled</b></span>
+      <span class="chip ok" title="Es findet kein Upload zum Server statt">Server upload: <b>Disabled</b></span>
+    </div>
+  </div>
+</header>
+
+<div class="privacy-banner" role="note">
+  🔒 <b>Lokale Verarbeitung</b> – Ihre Datei verlässt dieses Gerät nicht.
+</div>
+
+<main id="view">
+
+  <!-- Step 1: file -->
+  <section class="card" id="step-file">
+    <h2>1 · Datei auswählen</h2>
+    <div id="dropzone" class="dropzone" tabindex="0" role="button"
+         aria-label="Datei hierher ziehen oder zum Auswählen aktivieren">
+      <p class="dz-title">Datei hierher ziehen oder <span class="link">durchsuchen</span></p>
+      <p class="dz-hint">Aktuell unterstützt: <b>.txt</b> · max. 25&nbsp;MB · Einlesen erfolgt rein lokal</p>
+      <input type="file" id="fileInput" accept=".txt,text/plain" hidden>
+    </div>
+    <p class="filemeta" id="fileMeta" hidden></p>
+  </section>
+
+  <!-- Step 2: options -->
+  <section class="card" id="step-options" hidden>
+    <h2>2 · Modus wählen</h2>
+    <div class="modes">
+      <label class="mode">
+        <input type="radio" name="mode" value="anonymize" checked>
+        <span><b>Anonymisieren</b><br><small>z. B. Ahmad Abdullah → [PERSON]</small></span>
+      </label>
+      <label class="mode">
+        <input type="radio" name="mode" value="pseudonymize">
+        <span><b>Pseudonymisieren</b><br><small>z. B. Ahmad Abdullah → Person-001 (gleicher Wert = gleiches Pseudonym)</small></span>
+      </label>
+    </div>
+    <button class="btn primary" id="analyzeBtn">Analysieren</button>
+  </section>
+
+  <!-- Step 3: review -->
+  <section class="card" id="step-review" hidden>
+    <h2>3 · Treffer prüfen <span class="count-badge" id="reviewCount"></span></h2>
+    <p class="hint">Automatische Erkennung ist assistiv, nicht vollständig. Prüfen Sie jeden Treffer und passen Sie Ersetzungen bei Bedarf an.</p>
+    <div class="table-wrap">
+      <table id="reviewTable">
+        <thead>
+          <tr>
+            <th>Typ</th><th>Original</th><th>Ersetzung</th><th class="num">Anzahl</th><th class="num">Aktiv</th>
+          </tr>
+        </thead>
+        <tbody id="reviewBody"></tbody>
+      </table>
+    </div>
+    <p class="empty" id="reviewEmpty" hidden>Keine personenbezogenen Daten erkannt.</p>
+    <button class="btn primary" id="applyBtn">Ersetzen &amp; Ergebnis erzeugen</button>
+  </section>
+
+  <!-- Step 4: result -->
+  <section class="card" id="step-result" hidden>
+    <h2>4 · Ergebnis prüfen &amp; herunterladen</h2>
+    <div class="table-wrap">
+      <pre class="preview" id="preview"></pre>
+    </div>
+    <div class="actions">
+      <button class="btn primary" id="downloadBtn">Bearbeitete Datei herunterladen</button>
+      <button class="btn" id="mappingCsvBtn">Mapping als CSV</button>
+      <button class="btn" id="mappingJsonBtn">Mapping als JSON</button>
+      <button class="btn ghost" id="resetBtn">Zurücksetzen</button>
+    </div>
+    <p class="warn" id="mappingWarn" hidden>
+      ⚠️ Die Mapping-Datei enthält selbst personenbezogene Daten (die Originalwerte)
+      und kann pseudonymisierte Ausgaben re-identifizieren. Sie muss besonders
+      geschützt werden.
+    </p>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <span>DataCloak · lokale Verarbeitung im Browser</span>
+  <a href="privacy.html">Datenschutz</a>
+</footer>
+
+<div class="toast" id="toast" role="alert" aria-live="polite" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>

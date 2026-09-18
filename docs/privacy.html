@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; form-action 'none'; frame-ancestors 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DataCloak — Datenschutz</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="bar"><div class="bar-in"><div class="brand"><span class="logo">🛡️</span><h1>DataCloak</h1></div><div class="spacer"></div><a class="link" href="index.html">Zurück zur App</a></div></header>
+
+<main id="view">
+  <section class="card">
+    <h2>Datenschutz – technische Dokumentation</h2>
+    <p class="hint">Diese Seite beschreibt in technischer Form, wie DataCloak mit Daten umgeht.</p>
+
+    <h3>Klartext-Aussage</h3>
+    <p>Dokumente werden lokal in Ihrem Browser verarbeitet und <b>nicht</b> zur
+      Dokumentverarbeitung an unseren Server oder externe KI-Dienste übertragen.</p>
+    <p>Wir vermeiden bewusst pauschale Aussagen wie „100&nbsp;% DSGVO-konform“. Die
+      Architektur ist auf Privacy by Design ausgelegt; die endgültige
+      DSGVO-Bewertung hängt zusätzlich von Betrieb, Hosting, Logging,
+      Verarbeitungsverzeichnis, Datenschutzerklärung und organisatorischen
+      Maßnahmen ab.</p>
+
+    <h3>Welche Daten verarbeitet werden</h3>
+    <ul>
+      <li>das geöffnete Dokument und der daraus extrahierte Text,</li>
+      <li>die darin erkannten personenbezogenen Daten (Treffer),</li>
+      <li>die Ersetzungs-/Mapping-Tabelle (Original → Ersetzung),</li>
+      <li>das erzeugte Ausgabedokument.</li>
+    </ul>
+
+    <h3>Wo die Verarbeitung stattfindet</h3>
+    <p>Vollständig in Ihrem Browser – im Hauptthread und in einem lokalen Web
+      Worker. Es gibt keine serverseitige Verarbeitung und keine externe KI.</p>
+
+    <h3>Welche Netzwerkverbindungen die Anwendung aufbaut</h3>
+    <ul>
+      <li><b>Beim Laden:</b> HTTPS-GET-Anfragen für die eigenen statischen Dateien
+        (HTML, CSS, JS, Icons) vom Host der App.</li>
+      <li><b>Während der Dokumentverarbeitung:</b> keine. Es werden keine Datei-,
+        Text-, PII- oder Mapping-Daten übertragen.</li>
+      <li>Keine Drittanbieter-Domains, keine Analytics, kein Error-Tracking.</li>
+    </ul>
+
+    <h3>Welche Daten gespeichert werden</h3>
+    <ul>
+      <li><b>Dokumentinhalte:</b> werden nicht gespeichert; sie liegen während der
+        Verarbeitung im Arbeitsspeicher und werden beim Zurücksetzen / nach dem
+        Download verworfen.</li>
+      <li><b>Service-Worker-Cache:</b> speichert ausschließlich die eigenen
+        statischen Dateien für den Offline-Betrieb – niemals Dokumentinhalte.</li>
+      <li><b>Keine</b> Cookies, kein <code>localStorage</code>, kein
+        <code>IndexedDB</code> für Dokumentdaten.</li>
+    </ul>
+
+    <h3>Wann Daten verworfen werden</h3>
+    <ul>
+      <li>Objekt-URLs für Downloads werden mit <code>URL.revokeObjectURL()</code> freigegeben.</li>
+      <li>Beim Zurücksetzen (oder Laden einer anderen Datei) werden Referenzen auf
+        das vorherige Dokument gelöst; der Web Worker wird beendet.</li>
+      <li>Schließen des Tabs verwirft alles (nichts wird persistiert).</li>
+    </ul>
+
+    <h3>Mapping-/Report-Datei (optionaler Export)</h3>
+    <p>Exportieren Sie die Ersetzungstabelle (CSV/JSON), enthält diese Datei
+      <b>selbst personenbezogene Daten</b> (die Originalwerte) und kann
+      pseudonymisierte Ausgaben re-identifizieren. Die App weist vor dem Export
+      darauf hin. Bewahren und teilen Sie die Datei entsprechend geschützt auf.</p>
+
+    <h3>Drittanbieter-Abhängigkeiten</h3>
+    <ul>
+      <li><b>MVP: keine zur Laufzeit.</b> Für die TXT-Verarbeitung wird kein
+        Drittanbieter-JavaScript ausgeliefert.</li>
+      <li>Künftige Dokument-Bibliotheken (PDF/DOCX/XLSX) werden selbst gehostet
+        (kein CDN), versioniert und hinsichtlich Netzwerkverhalten, Lizenz und
+        Wartungsstatus geprüft.</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>
