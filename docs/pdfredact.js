@@ -70,6 +70,7 @@ export async function analyze(buffer, options = {}) {
     }
     text += '\n';
     pages.push({ base: canvas, w: canvas.width, h: canvas.height, items });
+    if (typeof options.onProgress === 'function') options.onProgress(p, pdf.numPages);
   }
 
   const findings = detect(text, options);
@@ -79,7 +80,7 @@ export async function analyze(buffer, options = {}) {
 }
 
 // --- build the redacted PDF --------------------------------------------
-export async function build(rows) {
+export async function build(rows, opts = {}) {
   if (!model) throw new Error('No PDF analysed');
   const byKey = new Map(rows.map((r) => [keyOf(r.type, r.value), r]));
   const active = model.findings.filter((f) => {
@@ -107,6 +108,7 @@ export async function build(rows) {
 
     const jpeg = await canvasToJpeg(canvas, 0.9);
     outPages.push({ jpeg, width: canvas.width, height: canvas.height });
+    if (typeof opts.onProgress === 'function') opts.onProgress(outPages.length, model.pages.length);
   }
   return assembleImagePdf(outPages); // pure writer, imported from imagepdf.js
 }

@@ -29,6 +29,7 @@ async function handle(msg) {
     switch (msg.cmd) {
       case 'analyze': {
         currentFormat = (msg.format === 'docx' || msg.format === 'xlsx') ? msg.format : 'txt';
+        self.postMessage({ type: 'progress', value: 0.1, label: 'Einlesen…' });
         if (currentFormat === 'docx') {
           currentModel = await parseDocx(msg.buffer);
           currentText = currentModel.text;
@@ -39,14 +40,17 @@ async function handle(msg) {
           currentModel = null;
           currentText = typeof msg.text === 'string' ? msg.text : '';
         }
+        self.postMessage({ type: 'progress', value: 0.55, label: 'Personenbezogene Daten erkennen…' });
         currentFindings = detect(currentText, msg.options || {});
         const rows = aggregate(currentFindings, msg.options || {});
+        self.postMessage({ type: 'progress', value: 1, label: 'Fertig' });
         self.postMessage({ ok: true, type: 'analyzed', findings: currentFindings, rows });
         break;
       }
       case 'apply': {
         const rows = Array.isArray(msg.rows) ? msg.rows : [];
         const byKey = new Map(rows.map((r) => [keyOf(r.type, r.value), r]));
+        self.postMessage({ type: 'progress', value: 0.3, label: 'Ersetzungen anwenden…' });
         const full = applyReplacements(currentText, currentFindings, byKey);
         // Cap the on-screen preview so a huge document can't freeze the UI when
         // rendered into the DOM. The downloaded file always uses the full output.
@@ -55,6 +59,7 @@ async function handle(msg) {
           ? full.slice(0, PREVIEW_MAX) + '\n… (Vorschau gekürzt – der Download enthält das vollständige Ergebnis)'
           : full;
         if ((currentFormat === 'docx' || currentFormat === 'xlsx') && currentModel) {
+          self.postMessage({ type: 'progress', value: 0.6, label: 'Datei erzeugen…' });
           const bytes = currentFormat === 'docx'
             ? await buildDocx(currentModel, currentFindings, byKey)
             : await buildXlsx(currentModel, currentFindings, byKey);

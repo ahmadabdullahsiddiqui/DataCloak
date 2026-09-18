@@ -35,6 +35,12 @@
   🔒 <b>Lokale Verarbeitung</b> – Ihre Datei verlässt dieses Gerät nicht.
 </div>
 
+<div class="progress" id="progress" hidden role="progressbar" aria-live="polite"
+     aria-valuemin="0" aria-valuemax="100">
+  <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="progress-label" id="progressLabel"></span>
+</div>
+
 <main id="view">
 
   <!-- Step 1: file -->
@@ -108,7 +114,7 @@
 <footer class="foot">
   <p>DataCloak verarbeitet Dokumente lokal in Ihrem Browser – kein Upload, keine externe KI, keine Telemetrie.</p>
   <p class="footer-credit">Made and Designed with <span class="heart">❤</span> by Ahmad Abdullah</p>
-  <p class="footer-meta"><a href="privacy.html">Datenschutz</a> · v<span id="app-version">0.4.1</span></p>
+  <p class="footer-meta"><a href="privacy.html">Datenschutz</a> · v<span id="app-version">0.4.2</span></p>
 </footer>
 
 <div class="toast" id="toast" role="alert" aria-live="polite" hidden></div>

@@ -8,7 +8,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = '0.4.1';
+  const APP_VERSION = '0.4.2';
 
   // File size is intentionally unlimited (processing is fully local).
   const MAX_BYTES = Infinity;
@@ -54,6 +54,31 @@
     clearTimeout(showToast._t);
     showToast._t = setTimeout(() => { toast.hidden = true; }, 3500);
   }
+
+  // --- progress bar -------------------------------------------------
+  const progress = $('progress');
+  const progressFill = $('progressFill');
+  const progressLabel = $('progressLabel');
+
+  function showProgress(label) {
+    progress.hidden = false;
+    setProgress(null, label); // start indeterminate until we know a fraction
+  }
+  // fraction: 0..1 for a determinate bar, or null for indeterminate.
+  function setProgress(fraction, label) {
+    if (fraction == null) {
+      progress.classList.add('indeterminate');
+      progressFill.style.width = '';
+      progress.removeAttribute('aria-valuenow');
+    } else {
+      progress.classList.remove('indeterminate');
+      const pct = Math.max(0, Math.min(100, Math.round(fraction * 100)));
+      progressFill.style.width = pct + '%';
+      progress.setAttribute('aria-valuenow', String(pct));
+    }
+    if (label != null) progressLabel.textContent = label;
+  }
+  function hideProgress() { progress.hidden = true; }
 
   function getWorker() {
     if (!worker) worker = new Worker('worker.js', { type: 'module' });
@@ -151,20 +176,23 @@
     const mode = currentMode();
     analyzeBtn.disabled = true;
     analyzeBtn.textContent = 'Analysiere…';
+    showProgress('Analysiere…');
 
     const w = getWorker();
     w.onmessage = (e) => {
       const d = e.data || {};
-      if (!d.ok) { showToast('Analyse fehlgeschlagen.'); resetAnalyzeBtn(); return; }
+      if (d.type === 'progress') { setProgress(d.value, d.label); return; }
+      if (!d.ok) { showToast('Analyse fehlgeschlagen.'); resetAnalyzeBtn(); hideProgress(); return; }
       if (d.type === 'analyzed') {
         rows = d.rows || [];
         renderReview();
         resetAnalyzeBtn();
+        hideProgress();
         stepReview.hidden = false;
         stepReview.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     };
-    w.onerror = () => { showToast('Analyse fehlgeschlagen.'); resetAnalyzeBtn(); };
+    w.onerror = () => { showToast('Analyse fehlgeschlagen.'); resetAnalyzeBtn(); hideProgress(); };
 
     const msg = { cmd: 'analyze', format: payload.format, options: { mode } };
     if (payload.buffer) msg.buffer = payload.buffer; // structured-clone copy: keeps
@@ -177,19 +205,25 @@
     const mode = currentMode();
     analyzeBtn.disabled = true;
     analyzeBtn.textContent = 'Analysiere…';
+    showProgress('PDF wird gelesen…');
     try {
       if (!pdfMod) pdfMod = await import('./pdfredact.js');
       // Pass a copy so the stored buffer stays usable for re-analysis.
-      const res = await pdfMod.analyze(payload.buffer.slice(0), { mode });
+      const res = await pdfMod.analyze(payload.buffer.slice(0), {
+        mode,
+        onProgress: (done, total) => setProgress(done / total, `Seite ${done}/${total} analysieren…`),
+      });
       rows = res.rows || [];
       pdfPageCount = res.pageCount || 0;
       renderReview();
       resetAnalyzeBtn();
+      hideProgress();
       stepReview.hidden = false;
       stepReview.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } catch {
       showToast('PDF konnte nicht verarbeitet werden.');
       resetAnalyzeBtn();
+      hideProgress();
     }
   }
 
@@ -253,10 +287,12 @@
     if (usePdf) { applyPdf(); return; }
     applyBtn.disabled = true;
     applyBtn.textContent = 'Erzeuge…';
+    showProgress('Ergebnis wird erzeugt…');
     const w = getWorker();
     w.onmessage = (e) => {
       const d = e.data || {};
-      if (!d.ok) { showToast('Ersetzung fehlgeschlagen.'); resetApplyBtn(); return; }
+      if (d.type === 'progress') { setProgress(d.value, d.label); return; }
+      if (!d.ok) { showToast('Ersetzung fehlgeschlagen.'); resetApplyBtn(); hideProgress(); return; }
       if (d.type === 'applied') {
         if (d.binary) {
           outputBytes = d.output;               // Uint8Array (e.g. DOCX/XLSX)
@@ -269,6 +305,7 @@
         outputExt = d.ext || 'txt';
         preview.textContent = d.preview || '';   // capped, untrusted-safe preview
         resetApplyBtn();
+        hideProgress();
         mappingWarn.hidden = true;
         stepResult.hidden = false;
         stepResult.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -280,20 +317,25 @@
   async function applyPdf() {
     applyBtn.disabled = true;
     applyBtn.textContent = 'Erzeuge…';
+    showProgress('PDF wird geschwärzt…');
     try {
-      outputBytes = await pdfMod.build(rows);
+      outputBytes = await pdfMod.build(rows, {
+        onProgress: (done, total) => setProgress(done / total, `Seite ${done}/${total} schwärzen…`),
+      });
       outputMime = 'application/pdf';
       outputExt = 'pdf';
       outputText = `PDF sicher geschwärzt · ${pdfPageCount} Seite(n) · als Bild-PDF exportiert. ` +
         `Der ursprüngliche Text ist im Ergebnis nicht mehr enthalten (nicht markier-/kopierbar).`;
       preview.textContent = outputText;
       resetApplyBtn();
+      hideProgress();
       mappingWarn.hidden = true;
       stepResult.hidden = false;
       stepResult.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } catch {
       showToast('PDF-Erzeugung fehlgeschlagen.');
       resetApplyBtn();
+      hideProgress();
     }
   }
 
