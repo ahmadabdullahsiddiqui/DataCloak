@@ -27,11 +27,15 @@ const SHEET = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 const CONTENT_TYPES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/></Types>`;
 
+// A fake binary media entry to prove unchanged entries pass through untouched.
+const IMAGE = Uint8Array.from({ length: 2048 }, (_, i) => (i * 31 + 7) & 0xff);
+
 async function makeXlsx() {
   return zip([
     { name: '[Content_Types].xml', data: u8(CONTENT_TYPES) },
     { name: 'xl/sharedStrings.xml', data: u8(SHARED) },
     { name: 'xl/worksheets/sheet1.xml', data: u8(SHEET) },
+    { name: 'xl/media/image1.bin', data: IMAGE },
   ]);
 }
 
@@ -77,6 +81,19 @@ test('buildXlsx replaces PII and preserves numbers/formulas (anonymize)', async 
   assert.ok(sheet.includes('<v>42</v>'));
   assert.ok(sheet.includes('<f>A2&amp;B2</f>'));
   assert.ok(shared.includes('Tom &amp; Jerry'));
+});
+
+test('unchanged entries pass through byte-identical (no recompression)', async () => {
+  const model = await parseXlsx(await makeXlsx());
+  const findings = detect(model.text);
+  const rows = aggregate(findings, { mode: 'anonymize' });
+  const byKey = new Map(rows.map((r) => [`${r.type} ${r.value}`, r]));
+
+  const out = await buildXlsx(model, findings, byKey);
+  const files = await unzip(out);
+  const media = files.get('xl/media/image1.bin');
+  assert.equal(media.length, IMAGE.length);
+  assert.deepEqual(media, IMAGE);
 });
 
 test('buildXlsx stays a valid, re-openable ZIP (pseudonymize)', async () => {

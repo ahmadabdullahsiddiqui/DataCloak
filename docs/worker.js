@@ -47,7 +47,13 @@ async function handle(msg) {
       case 'apply': {
         const rows = Array.isArray(msg.rows) ? msg.rows : [];
         const byKey = new Map(rows.map((r) => [keyOf(r.type, r.value), r]));
-        const preview = applyReplacements(currentText, currentFindings, byKey);
+        const full = applyReplacements(currentText, currentFindings, byKey);
+        // Cap the on-screen preview so a huge document can't freeze the UI when
+        // rendered into the DOM. The downloaded file always uses the full output.
+        const PREVIEW_MAX = 20000;
+        const preview = full.length > PREVIEW_MAX
+          ? full.slice(0, PREVIEW_MAX) + '\n… (Vorschau gekürzt – der Download enthält das vollständige Ergebnis)'
+          : full;
         if ((currentFormat === 'docx' || currentFormat === 'xlsx') && currentModel) {
           const bytes = currentFormat === 'docx'
             ? await buildDocx(currentModel, currentFindings, byKey)
@@ -62,7 +68,7 @@ async function handle(msg) {
         } else {
           self.postMessage({
             ok: true, type: 'applied', binary: false, ext: 'txt',
-            mime: 'text/plain;charset=utf-8', output: preview, preview,
+            mime: 'text/plain;charset=utf-8', output: full, preview,
           });
         }
         break;

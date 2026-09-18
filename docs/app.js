@@ -8,7 +8,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = '0.4.0';
+  const APP_VERSION = '0.4.1';
 
   // File size is intentionally unlimited (processing is fully local).
   const MAX_BYTES = Infinity;
@@ -259,15 +259,15 @@
       if (!d.ok) { showToast('Ersetzung fehlgeschlagen.'); resetApplyBtn(); return; }
       if (d.type === 'applied') {
         if (d.binary) {
-          outputBytes = d.output;               // Uint8Array (e.g. DOCX)
-          outputText = d.preview || '';
+          outputBytes = d.output;               // Uint8Array (e.g. DOCX/XLSX)
+          outputText = '';
         } else {
           outputBytes = null;
-          outputText = d.output || '';
+          outputText = d.output || '';          // full text for the .txt download
         }
         outputMime = d.mime || 'text/plain;charset=utf-8';
         outputExt = d.ext || 'txt';
-        preview.textContent = outputText;        // untrusted-safe text preview
+        preview.textContent = d.preview || '';   // capped, untrusted-safe preview
         resetApplyBtn();
         mappingWarn.hidden = true;
         stepResult.hidden = false;

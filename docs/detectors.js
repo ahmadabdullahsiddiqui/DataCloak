@@ -411,14 +411,21 @@ export function applyReplacements(text, findings, rowsByKey) {
   const get = (k) =>
     typeof rowsByKey.get === 'function' ? rowsByKey.get(k) : rowsByKey[k];
 
-  const ordered = [...findings].sort((a, b) => b.start - a.start);
-  let out = text;
+  // Single left-to-right pass: collect the untouched gaps and replacements, then
+  // join once. O(text + findings) instead of O(findings × text) from repeated
+  // slicing — essential for large documents. Findings are non-overlapping.
+  const ordered = [...findings].sort((a, b) => a.start - b.start);
+  const out = [];
+  let pos = 0;
   for (const f of ordered) {
+    if (f.start < pos) continue; // safety: skip any overlap
     const row = get(keyOf(f.type, f.value));
     if (!row || row.active === false) continue;
-    out = out.slice(0, f.start) + row.replacement + out.slice(f.end);
+    out.push(text.slice(pos, f.start), row.replacement);
+    pos = f.end;
   }
-  return out;
+  out.push(text.slice(pos));
+  return out.join('');
 }
 
 // Convenience for the common flow: detect â†’ aggregate â†’ apply, returning both

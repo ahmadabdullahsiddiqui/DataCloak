@@ -107,6 +107,69 @@ export async function unzip(input, limits = {}) {
   return files;
 }
 
+/*
+ * unzipEntries(buffer, limits) → { files, raw }
+ *   files: Map<name, Uint8Array>  (decompressed, like unzip)
+ *   raw:   Map<name, { method, comp, crc, uncompSize }>  (original compressed
+ *          bytes) so unchanged entries can be re-written WITHOUT recompressing —
+ *          a large speed-up for big Office files full of images.
+ */
+export async function unzipEntries(input, limits = {}) {
+  const maxEntries = limits.maxEntries ?? 5000;
+  const maxEntryBytes = limits.maxEntryBytes ?? 100 * 1024 * 1024;
+  const maxTotalBytes = limits.maxTotalBytes ?? 300 * 1024 * 1024;
+
+  const buf = input instanceof Uint8Array ? input : new Uint8Array(input);
+  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+
+  const eocd = findEOCD(buf);
+  const count = dv.getUint16(eocd + 10, true);
+  const cdOffset = dv.getUint32(eocd + 16, true);
+  if (count > maxEntries) throw new Error('ZIP has too many entries');
+
+  const files = new Map();
+  const raw = new Map();
+  let total = 0;
+  let p = cdOffset;
+
+  for (let i = 0; i < count; i++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) throw new Error('Corrupt central directory');
+    const method = dv.getUint16(p + 10, true);
+    const crc = dv.getUint32(p + 16, true);
+    const compSize = dv.getUint32(p + 20, true);
+    const uncompSize = dv.getUint32(p + 24, true);
+    const nameLen = dv.getUint16(p + 28, true);
+    const extraLen = dv.getUint16(p + 30, true);
+    const commentLen = dv.getUint16(p + 32, true);
+    const localOff = dv.getUint32(p + 42, true);
+    const name = dec.decode(buf.subarray(p + 46, p + 46 + nameLen));
+
+    if (uncompSize > maxEntryBytes) throw new Error('ZIP entry too large');
+
+    if (!name.endsWith('/')) {
+      if (dv.getUint32(localOff, true) !== 0x04034b50) throw new Error('Corrupt local header');
+      const lNameLen = dv.getUint16(localOff + 26, true);
+      const lExtraLen = dv.getUint16(localOff + 28, true);
+      const dataStart = localOff + 30 + lNameLen + lExtraLen;
+      const comp = buf.subarray(dataStart, dataStart + compSize).slice();
+
+      let data;
+      if (method === 0) data = comp.slice();
+      else if (method === 8) data = await inflateRaw(comp);
+      else throw new Error('Unsupported compression method ' + method);
+
+      if (data.length > maxEntryBytes) throw new Error('ZIP entry too large');
+      total += data.length;
+      if (total > maxTotalBytes) throw new Error('ZIP total size exceeds limit');
+      files.set(name, data);
+      raw.set(name, { method, comp, crc, uncompSize });
+    }
+
+    p += 46 + nameLen + extraLen + commentLen;
+  }
+  return { files, raw };
+}
+
 function concat(chunks) {
   let len = 0;
   for (const c of chunks) len += c.length;
@@ -128,14 +191,22 @@ export async function zip(entries) {
   const central = [];
   let offset = 0;
 
-  for (const { name, data } of list) {
+  for (const entry of list) {
+    const { name } = entry;
     const nameBytes = enc.encode(name);
-    const crc = crc32(data);
-    const uncompSize = data.length;
 
-    let method = 8;
-    let comp = await deflateRaw(data);
-    if (!comp || comp.length >= uncompSize) { method = 0; comp = data; }
+    let method, comp, crc, uncompSize;
+    if (entry.precompressed) {
+      // Pass an unchanged entry straight through — no recompression.
+      ({ method, comp, crc, uncompSize } = entry.precompressed);
+    } else {
+      const data = entry.data;
+      crc = crc32(data);
+      uncompSize = data.length;
+      method = 8;
+      comp = await deflateRaw(data);
+      if (!comp || comp.length >= uncompSize) { method = 0; comp = data; }
+    }
 
     const lh = new Uint8Array(30 + nameBytes.length);
     const ldv = new DataView(lh.buffer);

@@ -79,26 +79,44 @@ export function extractSegments(partModels, tagName, opts = {}) {
 }
 
 /*
- * rebuild(files, partModels, segments, findings, rowsByKey) → Uint8Array
+ * rebuild(files, raw, partModels, segments, findings, rowsByKey) → Uint8Array
  * Applies the active replacements into the run text and re-zips the archive.
+ *
+ * Performance for large files:
+ *  - segments are in text order (gStart/gEnd ascending, non-overlapping), so each
+ *    finding's overlapping runs are found by binary search — O(F log S), not O(F·S);
+ *  - only the modified text parts are recompressed; every other entry is passed
+ *    through with its original compressed bytes (`raw`).
  */
-export async function rebuild(files, partModels, segments, findings, rowsByKey) {
+export async function rebuild(files, raw, partModels, segments, findings, rowsByKey) {
   const get = (k) => (typeof rowsByKey.get === 'function' ? rowsByKey.get(k) : rowsByKey[k]);
 
-  // Distribute each finding across the run segments it overlaps.
+  // First segment whose gEnd > start (segments' gEnd is ascending).
+  const firstOverlap = (start) => {
+    let lo = 0;
+    let hi = segments.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (segments[mid].gEnd > start) hi = mid; else lo = mid + 1;
+    }
+    return lo;
+  };
+
   const editsBySeg = new Map();
   const ordered = [...findings].sort((a, b) => a.start - b.start);
   for (const f of ordered) {
     const row = get(keyOf(f.type, f.value));
     if (!row || row.active === false) continue;
-    const overlap = segments.filter((s) => s.gStart < f.end && s.gEnd > f.start);
-    overlap.forEach((s, idx) => {
+    let idx = 0;
+    for (let i = firstOverlap(f.start); i < segments.length && segments[i].gStart < f.end; i++) {
+      const s = segments[i];
       const localStart = Math.max(f.start, s.gStart) - s.gStart;
       const localEnd = Math.min(f.end, s.gEnd) - s.gStart;
       const txt = idx === 0 ? row.replacement : ''; // full replacement in first run
       if (!editsBySeg.has(s)) editsBySeg.set(s, []);
       editsBySeg.get(s).push({ localStart, localEnd, txt });
-    });
+      idx++;
+    }
   }
 
   // Rewrite each segment's decoded text, then re-escape.
@@ -112,14 +130,23 @@ export async function rebuild(files, partModels, segments, findings, rowsByKey) 
     s.newInner = xmlEncode(d);
   }
 
-  // Splice new inner text back into each part's XML (right-to-left).
+  // Group segments by part once, then splice new inner text back (right-to-left).
   const enc = new TextEncoder();
+  const byPart = partModels.map(() => []);
+  for (const s of segments) byPart[s.partIndex].push(s);
   for (let pi = 0; pi < partModels.length; pi++) {
-    const segs = segments.filter((s) => s.partIndex === pi).sort((a, b) => b.innerStart - a.innerStart);
+    const segs = byPart[pi].sort((a, b) => b.innerStart - a.innerStart);
     let xml = partModels[pi].xml;
     for (const s of segs) xml = xml.slice(0, s.innerStart) + s.newInner + xml.slice(s.innerEnd);
     files.set(partModels[pi].name, enc.encode(xml));
   }
 
-  return zip(files);
+  // Only the modified parts are recompressed; everything else passes through.
+  const modified = new Set(partModels.map((p) => p.name));
+  const entries = [];
+  for (const [name, data] of files) {
+    if (!modified.has(name) && raw && raw.has(name)) entries.push({ name, precompressed: raw.get(name) });
+    else entries.push({ name, data });
+  }
+  return zip(entries);
 }

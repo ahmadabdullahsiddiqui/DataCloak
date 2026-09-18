@@ -6,14 +6,14 @@
  * formatting, tables, headers and footers stay intact.
  */
 
-import { unzip } from './zip.js';
+import { unzipEntries } from './zip.js';
 import { extractSegments, rebuild } from './ooxml.js';
 
 const TEXT_PART = /^word\/(document\.xml|header\d*\.xml|footer\d*\.xml|footnotes\.xml|endnotes\.xml)$/;
 const UNLIMITED = { maxEntries: Infinity, maxEntryBytes: Infinity, maxTotalBytes: Infinity };
 
 export async function parseDocx(input) {
-  const files = await unzip(input, UNLIMITED);
+  const { files, raw } = await unzipEntries(input, UNLIMITED);
   const dec = new TextDecoder();
   const partModels = [];
   for (const [name, data] of files) {
@@ -22,9 +22,9 @@ export async function parseDocx(input) {
   // Runs are joined within a paragraph; a newline is inserted at each </w:p> so
   // detection never bridges paragraphs.
   const { segments, text } = extractSegments(partModels, 'w:t', { blockCloseTags: ['</w:p>'] });
-  return { files, partModels, segments, text };
+  return { files, raw, partModels, segments, text };
 }
 
 export async function buildDocx(model, findings, rowsByKey) {
-  return rebuild(model.files, model.partModels, model.segments, findings, rowsByKey);
+  return rebuild(model.files, model.raw, model.partModels, model.segments, findings, rowsByKey);
 }
