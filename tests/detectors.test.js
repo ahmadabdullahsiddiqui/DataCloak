@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  detect, aggregate, applyReplacements, process,
+  detect, aggregate, applyReplacements, process, keyOf,
   validateIBAN, validateSteuerId,
 } from '../docs/detectors.js';
 
@@ -94,6 +94,21 @@ test('pseudonymize is stable per value', () => {
   const email = rows.find((r) => r.type === 'email');
   assert.equal(email.count, 2);
   assert.equal(output.match(/email-001@example\.invalid/g).length, 2);
+});
+
+test('applyReplacements works with an externally built map (worker/docx contract)', () => {
+  // Mirrors exactly what worker.js / docx.js do: build the key map OUTSIDE the
+  // engine via keyOf, then apply. Guards against producer/consumer key drift.
+  const t = 'Mail ahmad@example.de und Ahmad Abdullah, IBAN DE89370400440532013000';
+  const findings = detect(t);
+  const rows = aggregate(findings, { mode: 'anonymize' });
+  const byKey = new Map(rows.map((r) => [keyOf(r.type, r.value), r]));
+  const out = applyReplacements(t, findings, byKey);
+  assert.ok(out.includes('[EMAIL]'));
+  assert.ok(out.includes('[PERSON]'));
+  assert.ok(out.includes('[IBAN]'));
+  assert.ok(!out.includes('ahmad@example.de'));
+  assert.ok(!out.includes('DE89370400440532013000'));
 });
 
 test('deactivated rows are left untouched', () => {

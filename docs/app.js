@@ -8,7 +8,8 @@
 (() => {
   'use strict';
 
-  const MAX_BYTES = 25 * 1024 * 1024; // 25 MB input cap (DoS hardening)
+  // File size is intentionally unlimited (processing is fully local).
+  const MAX_BYTES = Infinity;
 
   // --- element refs -------------------------------------------------
   const $ = (id) => document.getElementById(id);
@@ -36,7 +37,10 @@
   let fileName = '';
   let rows = []; // [{type,label,value,replacement,count,active}]
   let outputText = '';
-  let outputUrl = null; // Object URL to revoke
+  let outputBytes = null;   // Uint8Array for binary formats (DOCX)
+  let outputMime = 'text/plain;charset=utf-8';
+  let outputExt = 'txt';
+  let outputUrl = null;     // Object URL to revoke
 
   // --- helpers ------------------------------------------------------
   function showToast(text) {
@@ -91,19 +95,21 @@
   });
 
   async function handleFile(file) {
-    if (file.size > MAX_BYTES) {
-      showToast(`Datei zu groß (max. ${Math.round(MAX_BYTES / 1024 / 1024)} MB).`);
-      return;
-    }
-    const isTxt = /\.txt$/i.test(file.name) || file.type === 'text/plain' || file.type === '';
-    if (!isTxt) {
-      showToast('Aktuell wird nur .txt unterstützt.');
+    const isTxt = /\.txt$/i.test(file.name) || file.type === 'text/plain';
+    const isDocx = /\.docx$/i.test(file.name) ||
+      file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    if (!isTxt && !isDocx) {
+      showToast('Unterstützt werden .txt und .docx.');
       return;
     }
 
-    let text;
+    let payload;
     try {
-      text = await file.text(); // local read, no upload
+      if (isDocx) {
+        payload = { format: 'docx', buffer: await file.arrayBuffer() }; // local read, no upload
+      } else {
+        payload = { format: 'txt', text: await file.text() };
+      }
     } catch {
       showToast('Datei konnte nicht gelesen werden.');
       return;
@@ -113,12 +119,10 @@
     fileMeta.hidden = false;
     fileMeta.textContent = `Geladen: ${file.name} · ${formatBytes(file.size)} · lokal eingelesen`;
 
-    // Keep the text only until analyze hands it to the worker.
     stepReview.hidden = true;
     stepResult.hidden = true;
     stepOptions.hidden = false;
-    analyzeBtn.dataset.ready = '1';
-    analyzeBtn.onclick = () => analyze(text);
+    analyzeBtn.onclick = () => analyze(payload);
     stepOptions.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
@@ -129,7 +133,7 @@
   }
 
   // --- analyze ------------------------------------------------------
-  function analyze(text) {
+  function analyze(payload) {
     const mode = currentMode();
     analyzeBtn.disabled = true;
     analyzeBtn.textContent = 'Analysiere…';
@@ -147,7 +151,11 @@
       }
     };
     w.onerror = () => { showToast('Analyse fehlgeschlagen.'); resetAnalyzeBtn(); };
-    w.postMessage({ cmd: 'analyze', text, options: { mode } });
+
+    const msg = { cmd: 'analyze', format: payload.format, options: { mode } };
+    if (payload.format === 'docx') msg.buffer = payload.buffer; // structured-clone copy: keeps
+    else msg.text = payload.text;                               // the original usable for re-analyze
+    w.postMessage(msg);
   }
 
   function resetAnalyzeBtn() {
@@ -214,8 +222,16 @@
       const d = e.data || {};
       if (!d.ok) { showToast('Ersetzung fehlgeschlagen.'); resetApplyBtn(); return; }
       if (d.type === 'applied') {
-        outputText = d.output || '';
-        preview.textContent = outputText; // untrusted-safe
+        if (d.binary) {
+          outputBytes = d.output;               // Uint8Array (e.g. DOCX)
+          outputText = d.preview || '';
+        } else {
+          outputBytes = null;
+          outputText = d.output || '';
+        }
+        outputMime = d.mime || 'text/plain;charset=utf-8';
+        outputExt = d.ext || 'txt';
+        preview.textContent = outputText;        // untrusted-safe text preview
         resetApplyBtn();
         mappingWarn.hidden = true;
         stepResult.hidden = false;
@@ -253,7 +269,8 @@
   downloadBtn.addEventListener('click', () => {
     const mode = currentMode();
     const suffix = mode === 'pseudonymize' ? 'pseudonymisiert' : 'anonymisiert';
-    download(outName(suffix, 'txt'), outputText, 'text/plain;charset=utf-8');
+    const content = outputBytes ? outputBytes : outputText;
+    download(outName(suffix, outputExt), content, outputMime);
   });
 
   function activeRows() { return rows.filter((r) => r.active !== false); }
@@ -285,6 +302,7 @@
     if (worker) { worker.terminate(); worker = null; }
     rows = [];
     outputText = '';
+    outputBytes = null;
     fileName = '';
     revokeOutputUrl();
     fileInput.value = '';

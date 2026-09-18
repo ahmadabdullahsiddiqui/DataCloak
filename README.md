@@ -31,12 +31,15 @@ document.
 
 ## Status
 
-**MVP — plain-text (`.txt`) supported.** The full pipeline (read → detect →
-review/map → replace → download → optional report) works end-to-end for TXT.
-`PDF`, `DOCX` and `XLSX` are planned next and will use self-hosted, vendored
-client-side libraries (no CDN). See [ARCHITECTURE.md](ARCHITECTURE.md).
+**`.txt` and `.docx` supported.** The full pipeline (read → detect →
+review/map → replace → download → optional report) works end-to-end. DOCX keeps
+the original formatting: only the text inside `<w:t>` runs (document body,
+headers, footers, notes) is rewritten; PII split across adjacent runs is handled.
+The ZIP container is parsed in-house and (de)compressed with the browser's
+built-in Compression Streams — **no third-party library, no CDN**. There is no
+file-size limit. `PDF` and `XLSX` are next. See [ARCHITECTURE.md](ARCHITECTURE.md).
 
-## Detected data types (TXT MVP)
+## Detected data types
 
 E-mail, phone / mobile numbers, IBAN (with checksum), BIC, IPv4/IPv6, German
 postal codes, dates of birth, German tax ID (`Steuer-IdNr`, with checksum),

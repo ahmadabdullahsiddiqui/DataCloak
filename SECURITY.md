@@ -80,9 +80,12 @@ with `worker.terminate()`.
 
 ## Resource / DoS limits
 
-- Maximum input file size (default 25 MB, configurable).
-- Decompression ratio and absolute output-size caps for zip-based formats.
-- Entry-count and per-entry size caps when unzipping DOCX/XLSX.
+- **File size is unlimited by product decision**, and the ZIP reader's
+  decompression caps are disabled. The trade-off: a very large or maliciously
+  crafted archive can consume significant memory. This is bounded only by the
+  browser tab and mitigated by running in a terminable Web Worker.
+- The zip reader keeps `maxEntries` / `maxEntryBytes` / `maxTotalBytes`
+  parameters (currently `Infinity`) so limits can be re-enabled centrally.
 - Bounded regex use to avoid catastrophic backtracking.
 
 ## PDF redaction rule

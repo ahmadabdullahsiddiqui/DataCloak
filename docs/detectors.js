@@ -1,4 +1,4 @@
-/* DataCloak — PII detection & replacement engine.
+/* DataCloak â€” PII detection & replacement engine.
  *
  * Pure functions only: no DOM, no I/O, no network. This module runs inside the
  * Web Worker AND is imported directly by the Node test suite, so it must stay
@@ -6,7 +6,7 @@
  *
  * A "finding" is { type, value, start, end } where [start, end) are offsets into
  * the analysed text. Detection is deterministic (regex + checksums +
- * dictionaries) — never an external AI.
+ * dictionaries) â€” never an external AI.
  */
 
 /* ------------------------------------------------------------------ */
@@ -60,7 +60,7 @@ const FIRST_NAMES = new Set([
   'christian', 'christina', 'claudia', 'daniel', 'david', 'dieter', 'elena',
   'emma', 'fatima', 'felix', 'frank', 'franziska', 'georg', 'hans', 'hanna',
   'heike', 'helmut', 'ingrid', 'jan', 'jana', 'jens', 'johannes', 'julia',
-  'jürgen', 'jurgen', 'karin', 'karl', 'katrin', 'klaus', 'lars', 'laura',
+  'jÃ¼rgen', 'jurgen', 'karin', 'karl', 'katrin', 'klaus', 'lars', 'laura',
   'lena', 'lisa', 'lukas', 'manfred', 'maria', 'markus', 'martin', 'max',
   'michael', 'monika', 'nadine', 'nico', 'nina', 'oliver', 'omar', 'paul',
   'peter', 'petra', 'phillip', 'philipp', 'rainer', 'ralf', 'renate', 'robert',
@@ -74,13 +74,13 @@ const FIRST_NAMES = new Set([
 /* ------------------------------------------------------------------ */
 /*
  * Each detector:
- *   type    — stable key
- *   label   — human label (UI)
- *   token   — anonymisation token, e.g. "[EMAIL]"
- *   prefix  — pseudonym prefix, e.g. "email"  (email is special-cased)
- *   regex   — global regex; matched text is the value unless `group` is set
- *   group   — capture-group index whose text is the value (optional)
- *   validate(value) — optional; return false to reject a match
+ *   type    â€” stable key
+ *   label   â€” human label (UI)
+ *   token   â€” anonymisation token, e.g. "[EMAIL]"
+ *   prefix  â€” pseudonym prefix, e.g. "email"  (email is special-cased)
+ *   regex   â€” global regex; matched text is the value unless `group` is set
+ *   group   â€” capture-group index whose text is the value (optional)
+ *   validate(value) â€” optional; return false to reject a match
  */
 export const DETECTORS = [
   {
@@ -140,7 +140,7 @@ export const DETECTORS = [
     label: 'Kfz-Kennzeichen',
     token: '[KENNZEICHEN]',
     prefix: 'Kennzeichen',
-    regex: /\b[A-ZÄÖÜ]{1,3}-[A-ZÄÖÜ]{1,2}[ ]?\d{1,4}[EH]?\b/g,
+    regex: /\b[A-ZÃ„Ã–Ãœ]{1,3}-[A-ZÃ„Ã–Ãœ]{1,2}[ ]?\d{1,4}[EH]?\b/g,
   },
   {
     type: 'phone',
@@ -166,8 +166,8 @@ export const DETECTORS = [
     label: 'PLZ',
     token: '[PLZ]',
     prefix: 'PLZ',
-    // 5 digits followed by a capitalised city token — reduces clash with IDs.
-    regex: /\b\d{5}(?=\s+[A-ZÄÖÜ][a-zäöüß]+)/g,
+    // 5 digits followed by a capitalised city token â€” reduces clash with IDs.
+    regex: /\b\d{5}(?=\s+[A-ZÃ„Ã–Ãœ][a-zÃ¤Ã¶Ã¼ÃŸ]+)/g,
   },
   {
     type: 'customerid',
@@ -199,7 +199,7 @@ export const DETECTORS = [
     token: '[PERSON]',
     prefix: 'Person',
     // Firstname (from dictionary) + capitalised Lastname. Scanner-based so a
-    // leading non-name capitalised word (e.g. "Kontakt Ahmad …") can't consume
+    // leading non-name capitalised word (e.g. "Kontakt Ahmad â€¦") can't consume
     // the real first name the way a single greedy regex match would.
     find: findPersonNames,
   },
@@ -248,8 +248,8 @@ function locate(match, detector) {
 
 /*
  * detect(text, options)
- *   options.enabledTypes — optional Set/array of type keys to run (default: all)
- *   options.customRules  — optional [{type,label,pattern,flags?}] user regexes
+ *   options.enabledTypes â€” optional Set/array of type keys to run (default: all)
+ *   options.customRules  â€” optional [{type,label,pattern,flags?}] user regexes
  * Returns non-overlapping findings sorted by start offset.
  */
 export function detect(text, options = {}) {
@@ -322,7 +322,7 @@ function dedupeOverlaps(findings) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Aggregation → replacement table                                     */
+/* Aggregation â†’ replacement table                                     */
 /* ------------------------------------------------------------------ */
 
 function pad(n) {
@@ -341,18 +341,18 @@ function tokenFor(detector, type) {
 }
 
 /*
- * aggregate(findings, options) → array of replacement rows:
+ * aggregate(findings, options) â†’ array of replacement rows:
  *   { type, label, value, replacement, count, active }
  * mode: 'anonymize' (default) | 'pseudonymize'
  * Identical values within a document always get the same replacement.
  */
 export function aggregate(findings, options = {}) {
   const mode = options.mode === 'pseudonymize' ? 'pseudonymize' : 'anonymize';
-  const rows = new Map(); // key `${type} ${value}` -> row
+  const rows = new Map(); // key `${type} ${value}` -> row
   const perTypeCounter = new Map();
 
   for (const f of findings) {
-    const key = `${f.type} ${f.value}`;
+    const key = keyOf(f.type, f.value);
     let row = rows.get(key);
     if (!row) {
       const det = DETECTOR_BY_TYPE.get(f.type);
@@ -384,31 +384,38 @@ export function aggregate(findings, options = {}) {
 /* Applying replacements                                               */
 /* ------------------------------------------------------------------ */
 
+// The single source of truth for the replacement-map key. Everything that
+// builds or reads the map (aggregate, applyReplacements, the worker, docx) MUST
+// use this so keys can never diverge between producer and consumer.
+export function keyOf(type, value) {
+  return type + ' ' + value; // real space; type slugs never contain spaces
+}
+
 /*
  * applyReplacements(text, findings, rowsByKey)
- *   rowsByKey: Map or object keyed `${type} ${value}` -> { replacement, active }
+ *   rowsByKey: Map or plain object keyed by keyOf(type, value) -> { replacement, active }
  * Applies right-to-left so offsets stay valid as lengths change.
  */
 export function applyReplacements(text, findings, rowsByKey) {
   const get = (k) =>
-    rowsByKey instanceof Map ? rowsByKey.get(k) : rowsByKey[k];
+    typeof rowsByKey.get === 'function' ? rowsByKey.get(k) : rowsByKey[k];
 
   const ordered = [...findings].sort((a, b) => b.start - a.start);
   let out = text;
   for (const f of ordered) {
-    const row = get(`${f.type} ${f.value}`);
+    const row = get(keyOf(f.type, f.value));
     if (!row || row.active === false) continue;
     out = out.slice(0, f.start) + row.replacement + out.slice(f.end);
   }
   return out;
 }
 
-// Convenience for the common flow: detect → aggregate → apply, returning both
+// Convenience for the common flow: detect â†’ aggregate â†’ apply, returning both
 // the new text and the replacement rows.
 export function process(text, options = {}) {
   const findings = detect(text, options);
   const rows = aggregate(findings, options);
-  const byKey = new Map(rows.map((r) => [`${r.type} ${r.value}`, r]));
+  const byKey = new Map(rows.map((r) => [keyOf(r.type, r.value), r]));
   const output = applyReplacements(text, findings, byKey);
   return { findings, rows, output };
 }

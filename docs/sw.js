@@ -7,13 +7,15 @@
  * HTML/JS/CSS shell is network-first (so a fixed build lands on the next online
  * load); fonts/icons are cache-first.
  */
-const CACHE = 'datacloak-v1';
+const CACHE = 'datacloak-v2';
 const ASSETS = [
   './',
   './index.html',
   './app.js',
   './worker.js',
   './detectors.js',
+  './zip.js',
+  './docx.js',
   './styles.css',
   './manifest.json',
   './icon.svg',
@@ -49,7 +51,7 @@ self.addEventListener('fetch', (e) => {
   if (url.origin !== self.location.origin) return;
 
   const isDoc = req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html');
-  const isShell = isDoc || /\/(app\.js|worker\.js|detectors\.js|styles\.css)$/.test(url.pathname);
+  const isShell = isDoc || /\/(app\.js|worker\.js|detectors\.js|zip\.js|docx\.js|styles\.css)$/.test(url.pathname);
 
   if (isShell) {
     e.respondWith(

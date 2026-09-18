@@ -103,7 +103,7 @@ offsets stay valid as the string length changes.
 | Format | MVP | Approach                                                              |
 | ------ | --- | -------------------------------------------------------------------- |
 | TXT    | ✅  | Read as text; detect; replace; re-encode UTF-8.                      |
-| DOCX   | ⏳  | Unzip in-browser; edit `word/*.xml` text runs; re-zip. Vendored lib. |
+| DOCX   | ✅  | In-house ZIP parse (`zip.js`) + Compression Streams; rewrite `<w:t>` runs across body/headers/footers/notes, cross-run aware; re-zip. No library. |
 | XLSX   | ⏳  | Unzip; walk every worksheet + shared strings; leave formulas intact. |
 | PDF    | ⏳  | Text-based PDFs only; **true redaction** — remove/replace the text in the output, not a black box over still-present text. Scanned/OCR PDFs: show a clear "not yet supported locally" message; **no external OCR**. |
 
@@ -121,12 +121,12 @@ operation, no network calls, license, and maintenance status — and then
 
 ## 8. Resource limits (DoS hardening)
 
-To keep manipulated Office/PDF files from exhausting browser memory:
-
-- Maximum input file size (configurable, default 25 MB).
-- Decompression ratio + absolute output cap for zip-based formats (DOCX/XLSX).
-- Entry-count and per-entry size caps when unzipping.
-- Processing runs in a worker so a runaway parse can be terminated
-  (`worker.terminate()`) without freezing the UI.
+By product decision there is **no file-size limit** and the ZIP reader's
+decompression caps are disabled (`Infinity`). Processing still runs in a Web
+Worker, so a runaway parse can be terminated (`worker.terminate()`) without
+freezing the UI, and everything stays local. The zip reader retains
+configurable `maxEntries` / `maxEntryBytes` / `maxTotalBytes` guards in code —
+currently set to unlimited — so a cap can be reintroduced without a rewrite if a
+future deployment needs it.
 
 See [SECURITY.md](SECURITY.md) and [THREAT-MODEL.md](THREAT-MODEL.md).

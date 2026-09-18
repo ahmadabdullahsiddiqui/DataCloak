@@ -1,45 +1,67 @@
 /* DataCloak — Web Worker.
  *
  * Runs document parsing, PII detection and replacement off the main thread so
- * the UI stays responsive. Document text is received ONLY via postMessage from
+ * the UI stays responsive. Document data is received ONLY via postMessage from
  * the same-origin page and is never sent over the network — this worker makes no
  * fetch/XHR calls at all.
  */
 
-import { detect, aggregate, applyReplacements } from './detectors.js';
+import { detect, aggregate, applyReplacements, keyOf } from './detectors.js';
+import { parseDocx, buildDocx } from './docx.js';
 
 // Kept in the worker so large documents aren't cloned back and forth on every
 // edit. Cleared on reset.
 let currentText = '';
 let currentFindings = [];
+let currentModel = null;   // DOCX model (null for plain text)
+let currentFormat = 'txt';
 
-self.addEventListener('message', (e) => {
-  const msg = e.data || {};
+self.addEventListener('message', (e) => { handle(e.data || {}); });
+
+async function handle(msg) {
   try {
     switch (msg.cmd) {
       case 'analyze': {
-        currentText = typeof msg.text === 'string' ? msg.text : '';
+        currentFormat = msg.format === 'docx' ? 'docx' : 'txt';
+        if (currentFormat === 'docx') {
+          currentModel = await parseDocx(msg.buffer);
+          currentText = currentModel.text;
+        } else {
+          currentModel = null;
+          currentText = typeof msg.text === 'string' ? msg.text : '';
+        }
         currentFindings = detect(currentText, msg.options || {});
         const rows = aggregate(currentFindings, msg.options || {});
-        self.postMessage({
-          ok: true,
-          type: 'analyzed',
-          findings: currentFindings,
-          rows,
-        });
+        self.postMessage({ ok: true, type: 'analyzed', findings: currentFindings, rows });
         break;
       }
       case 'apply': {
         const rows = Array.isArray(msg.rows) ? msg.rows : [];
-        const byKey = new Map(rows.map((r) => [`${r.type} ${r.value}`, r]));
-        const findings = Array.isArray(msg.findings) ? msg.findings : currentFindings;
-        const output = applyReplacements(currentText, findings, byKey);
-        self.postMessage({ ok: true, type: 'applied', output });
+        const byKey = new Map(rows.map((r) => [keyOf(r.type, r.value), r]));
+        const preview = applyReplacements(currentText, currentFindings, byKey);
+        if (currentFormat === 'docx' && currentModel) {
+          const bytes = await buildDocx(currentModel, currentFindings, byKey);
+          self.postMessage(
+            {
+              ok: true, type: 'applied', binary: true, ext: 'docx',
+              mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+              output: bytes, preview,
+            },
+            [bytes.buffer]
+          );
+        } else {
+          self.postMessage({
+            ok: true, type: 'applied', binary: false, ext: 'txt',
+            mime: 'text/plain;charset=utf-8', output: preview, preview,
+          });
+        }
         break;
       }
       case 'reset': {
         currentText = '';
         currentFindings = [];
+        currentModel = null;
+        currentFormat = 'txt';
         self.postMessage({ ok: true, type: 'reset' });
         break;
       }
@@ -50,4 +72,4 @@ self.addEventListener('message', (e) => {
     // Never include document content in error messages.
     self.postMessage({ ok: false, type: 'error', error: 'Processing failed' });
   }
-});
+}
