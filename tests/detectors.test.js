@@ -24,9 +24,12 @@ test('BIC detection', () => {
   assert.ok(types('BIC: COBADEFFXXX').includes('bic'));
 });
 
-test('IPv4 detection with boundary validation', () => {
+test('IPv4 detection: any four 1-4 digit dot-separated groups', () => {
   assert.deepEqual(values('Server 192.168.0.1 down'), ['192.168.0.1']);
-  assert.ok(!types('Version 999.1.1.1 here').includes('ipv4'));
+  // broad form per requirement — not limited to valid 0–255 octets
+  assert.ok(values('Adresse 999.1.1.1 hier').includes('999.1.1.1'));
+  assert.ok(values('x 1.2.3.4 y').includes('1.2.3.4'));
+  assert.ok(values('n 1234.5678.9012.3456 m').includes('1234.5678.9012.3456'));
 });
 
 test('German phone detection', () => {

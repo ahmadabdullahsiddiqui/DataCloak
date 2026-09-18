@@ -8,6 +8,8 @@
 (() => {
   'use strict';
 
+  const APP_VERSION = '0.2.0';
+
   // File size is intentionally unlimited (processing is fully local).
   const MAX_BYTES = Infinity;
 
@@ -316,6 +318,10 @@
     window.scrollTo({ top: 0, behavior: 'smooth' });
     showToast('Zurückgesetzt – alle Daten wurden verworfen.');
   }
+
+  // --- version in footer --------------------------------------------
+  const verEl = document.getElementById('app-version');
+  if (verEl) verEl.textContent = APP_VERSION;
 
   // --- service worker (offline PWA) ---------------------------------
   if ('serviceWorker' in navigator) {

@@ -118,7 +118,10 @@ export const DETECTORS = [
     label: 'IP-Adresse',
     token: '[IP]',
     prefix: 'IP',
-    regex: /\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b/g,
+    // Any four dot-separated numeric groups of 1–4 digits, per requirement:
+    // matches XX.XX.XX.XX, x.x.x.x, xxx.xxx.xxx.xxx, xxxx.xxxx.xxxx.xxxx —
+    // not just strictly valid 0–255 octets.
+    regex: /\b\d{1,4}\.\d{1,4}\.\d{1,4}\.\d{1,4}\b/g,
   },
   {
     type: 'ipv6',

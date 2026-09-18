@@ -151,10 +151,16 @@ tr.inactive { opacity: .45; }
 
 /* footer + toast */
 .foot {
-  max-width: 980px; margin: 0 auto; padding: 20px 16px;
-  display: flex; justify-content: space-between; color: var(--muted); font-size: 13px;
+  max-width: 980px; margin: 0 auto; padding: 24px 16px;
+  border-top: 1px solid var(--line); color: var(--muted);
+  font-size: 12.5px; text-align: center;
 }
-.foot a { color: var(--accent); }
+.foot p { margin: 0; }
+.footer-credit { margin: 10px 0 0; }
+.footer-credit .heart { color: #e11d48; }
+.footer-meta { margin: 4px 0 0; font-size: 12px; }
+.foot a { color: var(--accent); text-decoration: none; }
+.foot a:hover { text-decoration: underline; }
 .toast {
   position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
   background: var(--ink); color: var(--surface);
