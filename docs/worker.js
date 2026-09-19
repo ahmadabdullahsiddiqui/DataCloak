@@ -9,14 +9,13 @@
 import { detect, aggregate, applyReplacements, keyOf } from './detectors.js';
 import { parseDocx, buildDocx } from './docx.js';
 import { parseXlsx, buildXlsx } from './xlsx.js';
-import { parseZip, buildZip } from './zipbundle.js';
+import { parseZip, analyzeZip, buildZip } from './zipbundle.js';
 
 const MIME = {
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   zip: 'application/zip',
 };
-const BINARY_FORMATS = new Set(['docx', 'xlsx', 'zip']);
 
 // Kept in the worker so large documents aren't cloned back and forth on every
 // edit. Cleared on reset.
@@ -41,7 +40,15 @@ async function handle(msg) {
           currentText = currentModel.text;
         } else if (currentFormat === 'zip') {
           currentModel = await parseZip(msg.buffer);
-          currentText = currentModel.text;
+          currentText = '';
+          currentFindings = [];
+          // Detect each inner file separately (no giant combined string) with a
+          // shared replacement table across the archive.
+          const zrows = analyzeZip(currentModel, msg.options || {}, (done, total) =>
+            self.postMessage({ type: 'progress', value: 0.15 + 0.8 * (done / total), label: `Datei ${done}/${total} analysieren…` }));
+          self.postMessage({ type: 'progress', value: 1, label: 'Fertig' });
+          self.postMessage({ ok: true, type: 'analyzed', findings: [], rows: zrows });
+          break;
         } else {
           currentModel = null;
           currentText = typeof msg.text === 'string' ? msg.text : '';
@@ -56,6 +63,20 @@ async function handle(msg) {
       case 'apply': {
         const rows = Array.isArray(msg.rows) ? msg.rows : [];
         const byKey = new Map(rows.map((r) => [keyOf(r.type, r.value), r]));
+
+        if (currentFormat === 'zip' && currentModel) {
+          const bytes = await buildZip(currentModel, byKey, (done, total) =>
+            self.postMessage({ type: 'progress', value: done / total, label: `Datei ${done}/${total} erzeugen…` }));
+          const n = currentModel.subs.length;
+          const preview = `ZIP verarbeitet · ${n} Datei(en) im Archiv anonymisiert/pseudonymisiert · ` +
+            `übrige Einträge unverändert.`;
+          self.postMessage(
+            { ok: true, type: 'applied', binary: true, ext: 'zip', mime: MIME.zip, output: bytes, preview },
+            [bytes.buffer]
+          );
+          break;
+        }
+
         self.postMessage({ type: 'progress', value: 0.3, label: 'Ersetzungen anwenden…' });
         const full = applyReplacements(currentText, currentFindings, byKey);
         // Cap the on-screen preview so a huge document can't freeze the UI when
@@ -64,12 +85,11 @@ async function handle(msg) {
         const preview = full.length > PREVIEW_MAX
           ? full.slice(0, PREVIEW_MAX) + '\n… (Vorschau gekürzt – der Download enthält das vollständige Ergebnis)'
           : full;
-        if (BINARY_FORMATS.has(currentFormat) && currentModel) {
+        if ((currentFormat === 'docx' || currentFormat === 'xlsx') && currentModel) {
           self.postMessage({ type: 'progress', value: 0.6, label: 'Datei erzeugen…' });
-          let bytes;
-          if (currentFormat === 'docx') bytes = await buildDocx(currentModel, currentFindings, byKey);
-          else if (currentFormat === 'xlsx') bytes = await buildXlsx(currentModel, currentFindings, byKey);
-          else bytes = await buildZip(currentModel, currentFindings, byKey);
+          const bytes = currentFormat === 'docx'
+            ? await buildDocx(currentModel, currentFindings, byKey)
+            : await buildXlsx(currentModel, currentFindings, byKey);
           self.postMessage(
             {
               ok: true, type: 'applied', binary: true, ext: currentFormat,

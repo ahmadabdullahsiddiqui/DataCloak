@@ -3,84 +3,88 @@
  * Processes every supported document INSIDE a .zip (.txt, .docx, .xlsx) and
  * repackages the archive. All inner files share ONE replacement table, so the
  * same value gets the same pseudonym across the whole bundle. Unsupported entries
- * (images, .pdf, …) are passed through byte-for-byte unchanged — PDF needs the
- * canvas-based engine and is not processed inside a zip.
+ * (images, .pdf, …) are passed through byte-for-byte unchanged.
  *
- * Reuses the per-format engines: each inner .docx/.xlsx is itself a zip, parsed
- * by parseDocx/parseXlsx and rebuilt by buildDocx/buildXlsx.
+ * Each inner file is detected and rewritten INDEPENDENTLY — we never build one
+ * giant combined string, so huge archives don't hit the JS max-string-length
+ * limit ("Invalid string length"). Consistent pseudonyms come from aggregating
+ * all files' findings into a single replacement table.
  */
 
 import { unzipEntries, zip } from './zip.js';
 import { parseDocx, buildDocx } from './docx.js';
 import { parseXlsx, buildXlsx } from './xlsx.js';
-import { applyReplacements } from './detectors.js';
+import { detect, aggregate, applyReplacements } from './detectors.js';
 
 const UNLIMITED = { maxEntries: Infinity, maxEntryBytes: Infinity, maxTotalBytes: Infinity };
-
 const SUPPORTED = /\.(txt|docx|xlsx)$/i;
 
 export async function parseZip(input) {
   // Only decompress the documents we can process; images/other entries keep their
-  // raw compressed bytes and pass through untouched (faster + robust to exotic
-  // compression methods elsewhere in the archive).
+  // raw compressed bytes and pass through untouched (faster + robust).
   const { files, raw } = await unzipEntries(input, UNLIMITED, {
     shouldDecode: (name) => SUPPORTED.test(name),
   });
   const dec = new TextDecoder();
 
   const subs = [];
-  let text = '';
   for (const [name, data] of files) {
+    if (data == null) continue; // not decoded → pass through on rebuild
     const lower = name.toLowerCase();
-    let sub = null;
     try {
-      if (data == null) sub = null;          // not decoded → pass through
-      else if (lower.endsWith('.txt')) {
-        sub = { kind: 'txt', name, text: dec.decode(data) };
+      if (lower.endsWith('.txt')) {
+        subs.push({ kind: 'txt', name, text: dec.decode(data) });
       } else if (lower.endsWith('.docx')) {
         const m = await parseDocx(data);
-        sub = { kind: 'docx', name, model: m, text: m.text };
+        subs.push({ kind: 'docx', name, model: m, text: m.text });
       } else if (lower.endsWith('.xlsx')) {
         const m = await parseXlsx(data);
-        sub = { kind: 'xlsx', name, model: m, text: m.text };
+        subs.push({ kind: 'xlsx', name, model: m, text: m.text });
       }
     } catch {
-      sub = null; // corrupt/unsupported inner file → leave it untouched
-    }
-    if (sub) {
-      if (text.length) text += '\n'; // separate files so detection never bridges them
-      sub.gStart = text.length;
-      text += sub.text;
-      sub.gEnd = text.length;
-      subs.push(sub);
+      // corrupt/unsupported inner file → leave it untouched (passed through)
     }
   }
-  return { files, raw, subs, text, entryCount: files.size };
+  return { files, raw, subs };
 }
 
-export async function buildZip(model, findings, rowsByKey) {
+/*
+ * analyzeZip(model, options, onProgress) → rows
+ * Detects each inner file separately (findings stored file-local on the sub) and
+ * aggregates them into one shared replacement table.
+ */
+export function analyzeZip(model, options = {}, onProgress) {
+  const all = [];
+  let i = 0;
+  for (const sub of model.subs) {
+    sub.findings = detect(sub.text, options);
+    for (const f of sub.findings) all.push(f);
+    if (typeof onProgress === 'function') onProgress(++i, model.subs.length);
+  }
+  return aggregate(all, options);
+}
+
+/*
+ * buildZip(model, rowsByKey, onProgress) → Uint8Array
+ * Applies the shared replacement table to each inner file, repackages the rest.
+ */
+export async function buildZip(model, rowsByKey, onProgress) {
   const enc = new TextEncoder();
   const { files, raw, subs } = model;
-  const ordered = [...findings].sort((a, b) => a.start - b.start);
   const processed = new Set();
 
+  let i = 0;
   for (const sub of subs) {
-    // Findings inside this file's range, shifted to file-local offsets.
-    const local = [];
-    for (const f of ordered) {
-      if (f.start >= sub.gStart && f.end <= sub.gEnd) {
-        local.push({ type: f.type, value: f.value, start: f.start - sub.gStart, end: f.end - sub.gStart });
-      }
-    }
+    const local = sub.findings || [];
     let bytes;
     if (sub.kind === 'txt') bytes = enc.encode(applyReplacements(sub.text, local, rowsByKey));
     else if (sub.kind === 'docx') bytes = await buildDocx(sub.model, local, rowsByKey);
     else bytes = await buildXlsx(sub.model, local, rowsByKey);
     files.set(sub.name, bytes);
     processed.add(sub.name);
+    if (typeof onProgress === 'function') onProgress(++i, subs.length);
   }
 
-  // Processed files are recompressed; everything else passes through unchanged.
   const entries = [];
   for (const [name, data] of files) {
     if (!processed.has(name) && raw.has(name)) entries.push({ name, precompressed: raw.get(name) });
