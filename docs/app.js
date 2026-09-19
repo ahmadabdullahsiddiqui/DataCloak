@@ -8,7 +8,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = '0.5.0';
+  const APP_VERSION = '0.5.1';
 
   // File size is intentionally unlimited (processing is fully local).
   const MAX_BYTES = Infinity;
@@ -186,7 +186,7 @@
     w.onmessage = (e) => {
       const d = e.data || {};
       if (d.type === 'progress') { setProgress(d.value, d.label); return; }
-      if (!d.ok) { showToast('Analyse fehlgeschlagen.'); resetAnalyzeBtn(); hideProgress(); return; }
+      if (!d.ok) { showToast('Analyse fehlgeschlagen: ' + (d.error || 'unbekannt')); resetAnalyzeBtn(); hideProgress(); return; }
       if (d.type === 'analyzed') {
         rows = d.rows || [];
         renderReview();
@@ -296,7 +296,7 @@
     w.onmessage = (e) => {
       const d = e.data || {};
       if (d.type === 'progress') { setProgress(d.value, d.label); return; }
-      if (!d.ok) { showToast('Ersetzung fehlgeschlagen.'); resetApplyBtn(); hideProgress(); return; }
+      if (!d.ok) { showToast('Ersetzung fehlgeschlagen: ' + (d.error || 'unbekannt')); resetApplyBtn(); hideProgress(); return; }
       if (d.type === 'applied') {
         if (d.binary) {
           outputBytes = d.output;               // Uint8Array (e.g. DOCX/XLSX)

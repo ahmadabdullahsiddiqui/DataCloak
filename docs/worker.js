@@ -97,7 +97,9 @@ async function handle(msg) {
         self.postMessage({ ok: false, type: 'error', error: 'Unknown command' });
     }
   } catch (err) {
-    // Never include document content in error messages.
-    self.postMessage({ ok: false, type: 'error', error: 'Processing failed' });
+    // Structural errors (ZIP/format parsing) carry no document content, so we
+    // relay the message to help diagnose unreadable files.
+    const reason = (err && typeof err.message === 'string') ? err.message : 'Processing failed';
+    self.postMessage({ ok: false, type: 'error', error: reason });
   }
 }

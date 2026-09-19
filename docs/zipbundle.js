@@ -17,8 +17,15 @@ import { applyReplacements } from './detectors.js';
 
 const UNLIMITED = { maxEntries: Infinity, maxEntryBytes: Infinity, maxTotalBytes: Infinity };
 
+const SUPPORTED = /\.(txt|docx|xlsx)$/i;
+
 export async function parseZip(input) {
-  const { files, raw } = await unzipEntries(input, UNLIMITED);
+  // Only decompress the documents we can process; images/other entries keep their
+  // raw compressed bytes and pass through untouched (faster + robust to exotic
+  // compression methods elsewhere in the archive).
+  const { files, raw } = await unzipEntries(input, UNLIMITED, {
+    shouldDecode: (name) => SUPPORTED.test(name),
+  });
   const dec = new TextDecoder();
 
   const subs = [];
@@ -27,7 +34,8 @@ export async function parseZip(input) {
     const lower = name.toLowerCase();
     let sub = null;
     try {
-      if (lower.endsWith('.txt')) {
+      if (data == null) sub = null;          // not decoded → pass through
+      else if (lower.endsWith('.txt')) {
         sub = { kind: 'txt', name, text: dec.decode(data) };
       } else if (lower.endsWith('.docx')) {
         const m = await parseDocx(data);

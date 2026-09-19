@@ -49,6 +49,45 @@ function findEOCD(buf) {
   throw new Error('Not a ZIP archive');
 }
 
+// Resolve entry count + central-directory offset, following the ZIP64 records
+// when the 32-bit EOCD fields are saturated (large or many-entry archives).
+function readEOCD(buf, dv) {
+  const eocd = findEOCD(buf);
+  let count = dv.getUint16(eocd + 10, true);
+  let cdOffset = dv.getUint32(eocd + 16, true);
+  if (count === 0xffff || cdOffset === 0xffffffff) {
+    const locOff = eocd - 20;
+    if (locOff >= 0 && dv.getUint32(locOff, true) === 0x07064b50) {
+      const z64 = Number(dv.getBigUint64(locOff + 8, true));
+      if (z64 >= 0 && z64 + 56 <= buf.length && dv.getUint32(z64, true) === 0x06064b50) {
+        count = Number(dv.getBigUint64(z64 + 32, true));
+        cdOffset = Number(dv.getBigUint64(z64 + 48, true));
+      }
+    }
+  }
+  return { count, cdOffset };
+}
+
+// Read 64-bit sizes/offset from a central-directory entry's ZIP64 extra field
+// (id 0x0001), for whichever 32-bit fields were saturated (0xffffffff).
+function zip64Extra(dv, extraStart, extraLen, uncomp, comp, localOff) {
+  let p = extraStart;
+  const end = extraStart + extraLen;
+  while (p + 4 <= end) {
+    const id = dv.getUint16(p, true);
+    const sz = dv.getUint16(p + 2, true);
+    let q = p + 4;
+    if (id === 0x0001) {
+      if (uncomp === 0xffffffff) { uncomp = Number(dv.getBigUint64(q, true)); q += 8; }
+      if (comp === 0xffffffff) { comp = Number(dv.getBigUint64(q, true)); q += 8; }
+      if (localOff === 0xffffffff) { localOff = Number(dv.getBigUint64(q, true)); q += 8; }
+      break;
+    }
+    p += 4 + sz;
+  }
+  return { uncomp, comp, localOff };
+}
+
 /*
  * unzip(buffer, limits) → Map<name, Uint8Array>  (decompressed contents)
  * limits guards against decompression/zip bombs:
@@ -108,23 +147,29 @@ export async function unzip(input, limits = {}) {
 }
 
 /*
- * unzipEntries(buffer, limits) → { files, raw }
- *   files: Map<name, Uint8Array>  (decompressed, like unzip)
+ * unzipEntries(buffer, limits, opts) → { files, raw }
+ *   files: Map<name, Uint8Array|null>  (decompressed; null if not decoded)
  *   raw:   Map<name, { method, comp, crc, uncompSize }>  (original compressed
- *          bytes) so unchanged entries can be re-written WITHOUT recompressing —
- *          a large speed-up for big Office files full of images.
+ *          bytes) so unchanged entries can be re-written WITHOUT recompressing.
+ *
+ * Robustness: entries with an unsupported compression method (or that fail to
+ * inflate) do NOT abort the whole archive — their `files` value is null and they
+ * are passed through unchanged on rebuild via `raw`. This lets us read the
+ * supported documents inside a mixed archive produced by any tool.
+ *
+ * opts.shouldDecode(name) → only decompress entries for which this returns true
+ * (others keep raw bytes only). Skips wasted work on images/media.
  */
-export async function unzipEntries(input, limits = {}) {
+export async function unzipEntries(input, limits = {}, opts = {}) {
   const maxEntries = limits.maxEntries ?? 5000;
   const maxEntryBytes = limits.maxEntryBytes ?? 100 * 1024 * 1024;
   const maxTotalBytes = limits.maxTotalBytes ?? 300 * 1024 * 1024;
+  const shouldDecode = typeof opts.shouldDecode === 'function' ? opts.shouldDecode : () => true;
 
   const buf = input instanceof Uint8Array ? input : new Uint8Array(input);
   const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
 
-  const eocd = findEOCD(buf);
-  const count = dv.getUint16(eocd + 10, true);
-  const cdOffset = dv.getUint32(eocd + 16, true);
+  const { count, cdOffset } = readEOCD(buf, dv);
   if (count > maxEntries) throw new Error('ZIP has too many entries');
 
   const files = new Map();
@@ -136,15 +181,16 @@ export async function unzipEntries(input, limits = {}) {
     if (dv.getUint32(p, true) !== 0x02014b50) throw new Error('Corrupt central directory');
     const method = dv.getUint16(p + 10, true);
     const crc = dv.getUint32(p + 16, true);
-    const compSize = dv.getUint32(p + 20, true);
-    const uncompSize = dv.getUint32(p + 24, true);
     const nameLen = dv.getUint16(p + 28, true);
     const extraLen = dv.getUint16(p + 30, true);
     const commentLen = dv.getUint16(p + 32, true);
-    const localOff = dv.getUint32(p + 42, true);
     const name = dec.decode(buf.subarray(p + 46, p + 46 + nameLen));
-
-    if (uncompSize > maxEntryBytes) throw new Error('ZIP entry too large');
+    // ZIP64: 32-bit fields may be saturated and live in the extra block.
+    const z64 = zip64Extra(dv, p + 46 + nameLen, extraLen,
+      dv.getUint32(p + 24, true), dv.getUint32(p + 20, true), dv.getUint32(p + 42, true));
+    const compSize = z64.comp;
+    const uncompSize = z64.uncomp;
+    const localOff = z64.localOff;
 
     if (!name.endsWith('/')) {
       if (dv.getUint32(localOff, true) !== 0x04034b50) throw new Error('Corrupt local header');
@@ -153,14 +199,21 @@ export async function unzipEntries(input, limits = {}) {
       const dataStart = localOff + 30 + lNameLen + lExtraLen;
       const comp = buf.subarray(dataStart, dataStart + compSize).slice();
 
-      let data;
-      if (method === 0) data = comp.slice();
-      else if (method === 8) data = await inflateRaw(comp);
-      else throw new Error('Unsupported compression method ' + method);
-
-      if (data.length > maxEntryBytes) throw new Error('ZIP entry too large');
-      total += data.length;
-      if (total > maxTotalBytes) throw new Error('ZIP total size exceeds limit');
+      let data = null;
+      if (shouldDecode(name)) {
+        try {
+          if (method === 0) data = comp.slice();
+          else if (method === 8) data = await inflateRaw(comp);
+          // any other method: leave data null (pass-through only)
+        } catch {
+          data = null; // corrupt/unsupported entry → pass through untouched
+        }
+        if (data) {
+          if (data.length > maxEntryBytes) throw new Error('ZIP entry too large');
+          total += data.length;
+          if (total > maxTotalBytes) throw new Error('ZIP total size exceeds limit');
+        }
+      }
       files.set(name, data);
       raw.set(name, { method, comp, crc, uncompSize });
     }

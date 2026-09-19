@@ -13,11 +13,13 @@ const TEXT_PART = /^word\/(document\.xml|header\d*\.xml|footer\d*\.xml|footnotes
 const UNLIMITED = { maxEntries: Infinity, maxEntryBytes: Infinity, maxTotalBytes: Infinity };
 
 export async function parseDocx(input) {
-  const { files, raw } = await unzipEntries(input, UNLIMITED);
+  const { files, raw } = await unzipEntries(input, UNLIMITED, {
+    shouldDecode: (name) => TEXT_PART.test(name), // images/media pass through
+  });
   const dec = new TextDecoder();
   const partModels = [];
   for (const [name, data] of files) {
-    if (TEXT_PART.test(name)) partModels.push({ name, xml: dec.decode(data) });
+    if (data != null && TEXT_PART.test(name)) partModels.push({ name, xml: dec.decode(data) });
   }
   // Runs are joined within a paragraph; a newline is inserted at each </w:p> so
   // detection never bridges paragraphs.

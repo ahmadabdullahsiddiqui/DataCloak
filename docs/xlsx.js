@@ -16,12 +16,14 @@ const TEXT_PART = /^xl\/(sharedStrings\.xml|worksheets\/sheet\d+\.xml)$/;
 const UNLIMITED = { maxEntries: Infinity, maxEntryBytes: Infinity, maxTotalBytes: Infinity };
 
 export async function parseXlsx(input) {
-  const { files, raw } = await unzipEntries(input, UNLIMITED);
+  const { files, raw } = await unzipEntries(input, UNLIMITED, {
+    shouldDecode: (name) => TEXT_PART.test(name), // media pass through
+  });
   const dec = new TextDecoder();
   const partModels = [];
   // sharedStrings first (most text), then worksheets — order is not significant.
   for (const [name, data] of files) {
-    if (TEXT_PART.test(name)) partModels.push({ name, xml: dec.decode(data) });
+    if (data != null && TEXT_PART.test(name)) partModels.push({ name, xml: dec.decode(data) });
   }
   const { segments, text } = extractSegments(partModels, 't', { blockCloseTags: ['</si>', '</c>'] });
   return { files, raw, partModels, segments, text };
