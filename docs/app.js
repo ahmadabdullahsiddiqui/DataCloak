@@ -8,7 +8,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = '0.5.4';
+  const APP_VERSION = '0.5.5';
 
   // File size is intentionally unlimited (processing is fully local).
   const MAX_BYTES = Infinity;
@@ -236,6 +236,11 @@
     analyzeBtn.textContent = 'Analysieren';
   }
 
+  // Cap how many rows we build into the DOM. A huge archive can produce tens of
+  // thousands of unique findings; rendering one editable row each freezes the
+  // page. All rows are still applied on generate — only the *display* is capped.
+  const MAX_RENDER = 300;
+
   // --- review table -------------------------------------------------
   function renderReview() {
     reviewBody.textContent = '';
@@ -243,7 +248,10 @@
     reviewEmpty.hidden = rows.length > 0;
     applyBtn.hidden = rows.length === 0;
 
-    rows.forEach((row, i) => {
+    const limit = Math.min(rows.length, MAX_RENDER);
+    const frag = document.createDocumentFragment(); // one reflow, not N
+    for (let i = 0; i < limit; i++) {
+      const row = rows[i];
       const tr = document.createElement('tr');
 
       const tdType = document.createElement('td');
@@ -262,7 +270,7 @@
       input.className = 'repl';
       input.value = row.replacement;
       input.setAttribute('aria-label', `Ersetzung für ${row.value}`);
-      input.addEventListener('input', () => { rows[i].replacement = input.value; });
+      input.addEventListener('input', () => { row.replacement = input.value; });
       tdRepl.appendChild(input);
 
       const tdCount = document.createElement('td');
@@ -276,14 +284,27 @@
       cb.checked = row.active !== false;
       cb.setAttribute('aria-label', `Ersetzung aktiv für ${row.value}`);
       cb.addEventListener('change', () => {
-        rows[i].active = cb.checked;
+        row.active = cb.checked;
         tr.classList.toggle('inactive', !cb.checked);
       });
       tdActive.appendChild(cb);
 
       tr.append(tdType, tdOrig, tdRepl, tdCount, tdActive);
+      frag.appendChild(tr);
+    }
+    reviewBody.appendChild(frag);
+
+    if (rows.length > limit) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 5;
+      td.className = 'hint';
+      td.style.padding = '10px 12px';
+      td.textContent = `… und ${rows.length - limit} weitere Treffer. Aus Performance-Gründen ` +
+        `werden nur die ersten ${limit} angezeigt – beim Erzeugen werden ALLE ${rows.length} ersetzt.`;
+      tr.appendChild(td);
       reviewBody.appendChild(tr);
-    });
+    }
   }
 
   // --- apply --------------------------------------------------------
