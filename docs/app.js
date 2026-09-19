@@ -8,7 +8,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = '0.5.5';
+  const APP_VERSION = '0.5.6';
 
   // File size is intentionally unlimited (processing is fully local).
   const MAX_BYTES = Infinity;

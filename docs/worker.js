@@ -41,13 +41,12 @@ async function handle(msg) {
         } else if (currentFormat === 'zip') {
           currentText = '';
           currentFindings = [];
-          // Read/inflate inner files (with a per-file counter)…
+          // Read/inflate inner files — bar follows the counter (k/N)…
           currentModel = await parseZip(msg.buffer, (done, total) =>
-            self.postMessage({ type: 'progress', value: 0.05 + 0.45 * (done / total), label: `Datei ${done}/${total} einlesen…` }));
-          // …then detect each inner file separately (no giant combined string)
-          // with a shared replacement table across the archive.
+            self.postMessage({ type: 'progress', value: done / total, label: `Datei ${done}/${total} einlesen…` }));
+          // …then detect each inner file separately (bar restarts, follows k/N).
           const zrows = analyzeZip(currentModel, msg.options || {}, (done, total) =>
-            self.postMessage({ type: 'progress', value: 0.5 + 0.5 * (done / total), label: `Datei ${done}/${total} analysieren…` }));
+            self.postMessage({ type: 'progress', value: done / total, label: `Datei ${done}/${total} analysieren…` }));
           self.postMessage({ type: 'progress', value: 1, label: 'Fertig' });
           self.postMessage({ ok: true, type: 'analyzed', findings: [], rows: zrows });
           break;
