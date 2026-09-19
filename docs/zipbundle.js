@@ -19,6 +19,21 @@ import { detect, aggregate, applyReplacements } from './detectors.js';
 const UNLIMITED = { maxEntries: Infinity, maxEntryBytes: Infinity, maxTotalBytes: Infinity };
 const SUPPORTED = /\.(txt|docx|xlsx)$/i;
 
+// Run async fn over items with bounded concurrency, preserving input order.
+async function mapPool(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const idx = next++;
+      try { results[idx] = await fn(items[idx], idx); }
+      catch { results[idx] = null; }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 export async function parseZip(input) {
   // Only decompress the documents we can process; images/other entries keep their
   // raw compressed bytes and pass through untouched (faster + robust).
@@ -27,24 +42,22 @@ export async function parseZip(input) {
   });
   const dec = new TextDecoder();
 
-  const subs = [];
+  // Candidates in archive order (deterministic pseudonym numbering later).
+  const candidates = [];
   for (const [name, data] of files) {
-    if (data == null) continue; // not decoded → pass through on rebuild
-    const lower = name.toLowerCase();
-    try {
-      if (lower.endsWith('.txt')) {
-        subs.push({ kind: 'txt', name, text: dec.decode(data) });
-      } else if (lower.endsWith('.docx')) {
-        const m = await parseDocx(data);
-        subs.push({ kind: 'docx', name, model: m, text: m.text });
-      } else if (lower.endsWith('.xlsx')) {
-        const m = await parseXlsx(data);
-        subs.push({ kind: 'xlsx', name, model: m, text: m.text });
-      }
-    } catch {
-      // corrupt/unsupported inner file → leave it untouched (passed through)
-    }
+    if (data != null && SUPPORTED.test(name)) candidates.push({ name, data });
   }
+
+  // Decompress/parse inner files concurrently to overlap the async inflate work.
+  const parsed = await mapPool(candidates, 8, async ({ name, data }) => {
+    const lower = name.toLowerCase();
+    if (lower.endsWith('.txt')) return { kind: 'txt', name, text: dec.decode(data) };
+    if (lower.endsWith('.docx')) { const m = await parseDocx(data); return { kind: 'docx', name, model: m, text: m.text }; }
+    if (lower.endsWith('.xlsx')) { const m = await parseXlsx(data); return { kind: 'xlsx', name, model: m, text: m.text }; }
+    return null;
+  });
+
+  const subs = parsed.filter(Boolean);
   return { files, raw, subs };
 }
 

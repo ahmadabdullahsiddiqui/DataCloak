@@ -216,25 +216,29 @@ export const DETECTORS = [
   },
 ];
 
-// Tokenise into words (letters, optionally hyphenated) with offsets, then emit
-// "Firstname Lastname" where Firstname is a known first name, both tokens are
-// capitalised, and only whitespace separates them.
+const PERSON_TOKEN_RE = /\p{L}+(?:-\p{L}+)*/gu;
+const SEP_RE = /^[ \t]+$/;
+const isUpper = (w) => w[0] !== w[0].toLowerCase();
+
+// Emit "Firstname Lastname" where Firstname is a known first name, both tokens
+// are capitalised, and only spaces/tabs separate them. Streams a two-token
+// window instead of building a full token array (faster + less memory on big
+// documents).
 function findPersonNames(text) {
   const out = [];
-  const re = /\p{L}+(?:-\p{L}+)*/gu;
-  const toks = [];
+  PERSON_TOKEN_RE.lastIndex = 0;
+  let prev = null;
   let m;
-  while ((m = re.exec(text)) !== null) {
-    toks.push({ value: m[0], start: m.index, end: m.index + m[0].length });
-  }
-  const isUpper = (w) => w[0] !== w[0].toLowerCase();
-  for (let i = 0; i < toks.length - 1; i++) {
-    const a = toks[i];
-    const b = toks[i + 1];
-    if (!isUpper(a.value) || !isUpper(b.value)) continue;
-    if (!FIRST_NAMES.has(a.value.toLowerCase())) continue;
-    if (!/^[ \t]+$/.test(text.slice(a.end, b.start))) continue; // same line, no punctuation/newline
-    out.push({ value: text.slice(a.start, b.end), start: a.start, end: b.end });
+  while ((m = PERSON_TOKEN_RE.exec(text)) !== null) {
+    const value = m[0];
+    const start = m.index;
+    const end = start + value.length;
+    if (prev && isUpper(value) && isUpper(prev.value) &&
+        FIRST_NAMES.has(prev.value.toLowerCase()) &&
+        SEP_RE.test(text.slice(prev.end, start))) {
+      out.push({ value: text.slice(prev.start, end), start: prev.start, end });
+    }
+    prev = { value, start, end };
   }
   return out;
 }
@@ -302,7 +306,10 @@ export function detect(text, options = {}) {
       continue;
     }
 
-    const re = new RegExp(det.regex.source, det.regex.flags.includes('g') ? det.regex.flags : det.regex.flags + 'g');
+    // Reuse the detector's own (global) regex — resetting lastIndex — instead of
+    // recompiling it on every call. Big win when detect() runs per file (zip).
+    const re = det.regex.global ? det.regex : new RegExp(det.regex.source, det.regex.flags + 'g');
+    re.lastIndex = 0;
     let m;
     let guard = 0;
     while ((m = re.exec(text)) !== null) {
