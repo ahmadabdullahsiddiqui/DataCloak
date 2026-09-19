@@ -34,7 +34,7 @@ async function mapPool(items, limit, fn) {
   return results;
 }
 
-export async function parseZip(input) {
+export async function parseZip(input, onProgress) {
   // Only decompress the documents we can process; images/other entries keep their
   // raw compressed bytes and pass through untouched (faster + robust).
   const { files, raw } = await unzipEntries(input, UNLIMITED, {
@@ -49,12 +49,18 @@ export async function parseZip(input) {
   }
 
   // Decompress/parse inner files concurrently to overlap the async inflate work.
+  let done = 0;
+  const total = candidates.length;
   const parsed = await mapPool(candidates, 8, async ({ name, data }) => {
-    const lower = name.toLowerCase();
-    if (lower.endsWith('.txt')) return { kind: 'txt', name, text: dec.decode(data) };
-    if (lower.endsWith('.docx')) { const m = await parseDocx(data); return { kind: 'docx', name, model: m, text: m.text }; }
-    if (lower.endsWith('.xlsx')) { const m = await parseXlsx(data); return { kind: 'xlsx', name, model: m, text: m.text }; }
-    return null;
+    try {
+      const lower = name.toLowerCase();
+      if (lower.endsWith('.txt')) return { kind: 'txt', name, text: dec.decode(data) };
+      if (lower.endsWith('.docx')) { const m = await parseDocx(data); return { kind: 'docx', name, model: m, text: m.text }; }
+      if (lower.endsWith('.xlsx')) { const m = await parseXlsx(data); return { kind: 'xlsx', name, model: m, text: m.text }; }
+      return null;
+    } finally {
+      if (typeof onProgress === 'function') onProgress(++done, total);
+    }
   });
 
   const subs = parsed.filter(Boolean);

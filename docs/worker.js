@@ -39,13 +39,15 @@ async function handle(msg) {
           currentModel = await parseXlsx(msg.buffer);
           currentText = currentModel.text;
         } else if (currentFormat === 'zip') {
-          currentModel = await parseZip(msg.buffer);
           currentText = '';
           currentFindings = [];
-          // Detect each inner file separately (no giant combined string) with a
-          // shared replacement table across the archive.
+          // Read/inflate inner files (with a per-file counter)…
+          currentModel = await parseZip(msg.buffer, (done, total) =>
+            self.postMessage({ type: 'progress', value: 0.05 + 0.45 * (done / total), label: `Datei ${done}/${total} einlesen…` }));
+          // …then detect each inner file separately (no giant combined string)
+          // with a shared replacement table across the archive.
           const zrows = analyzeZip(currentModel, msg.options || {}, (done, total) =>
-            self.postMessage({ type: 'progress', value: 0.15 + 0.8 * (done / total), label: `Datei ${done}/${total} analysieren…` }));
+            self.postMessage({ type: 'progress', value: 0.5 + 0.5 * (done / total), label: `Datei ${done}/${total} analysieren…` }));
           self.postMessage({ type: 'progress', value: 1, label: 'Fertig' });
           self.postMessage({ ok: true, type: 'analyzed', findings: [], rows: zrows });
           break;
