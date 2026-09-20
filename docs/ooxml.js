@@ -34,6 +34,25 @@ export function xmlEncode(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// Document metadata often holds personal data (author, "last modified by", …).
+// Empty these fields in docProps/core.xml and app.xml. Returns the names of the
+// parts that changed (so the caller marks them for recompression).
+const META_FIELDS = /<(dc:creator|cp:lastModifiedBy|dc:title|dc:subject|dc:description|cp:keywords|cp:category|Company|Manager|HyperlinkBase)((?:\s[^>]*)?)>[\s\S]*?<\/\1>/g;
+
+export function scrubMetadata(files) {
+  const enc = new TextEncoder();
+  const dec = new TextDecoder();
+  const modified = [];
+  for (const name of ['docProps/core.xml', 'docProps/app.xml']) {
+    const data = files.get(name);
+    if (data == null) continue;
+    const xml = dec.decode(data);
+    const scrubbed = xml.replace(META_FIELDS, (m, tag, attrs) => `<${tag}${attrs}></${tag}>`);
+    if (scrubbed !== xml) { files.set(name, enc.encode(scrubbed)); modified.push(name); }
+  }
+  return modified;
+}
+
 /*
  * extractSegments(partModels, tagName, opts) → { segments, text }
  *   partModels: [{ name, xml }]
@@ -88,7 +107,7 @@ export function extractSegments(partModels, tagName, opts = {}) {
  *  - only the modified text parts are recompressed; every other entry is passed
  *    through with its original compressed bytes (`raw`).
  */
-export async function rebuild(files, raw, partModels, segments, findings, rowsByKey) {
+export async function rebuild(files, raw, partModels, segments, findings, rowsByKey, extraModified) {
   const get = (k) => (typeof rowsByKey.get === 'function' ? rowsByKey.get(k) : rowsByKey[k]);
 
   // First segment whose gEnd > start (segments' gEnd is ascending).
@@ -119,30 +138,32 @@ export async function rebuild(files, raw, partModels, segments, findings, rowsBy
     }
   }
 
-  // Rewrite each segment's decoded text, then re-escape.
-  for (const s of segments) {
-    const edits = editsBySeg.get(s);
-    let d = s.decoded;
-    if (edits) {
-      edits.sort((a, b) => b.localStart - a.localStart); // right-to-left
-      for (const e of edits) d = d.slice(0, e.localStart) + e.txt + d.slice(e.localEnd);
-    }
-    s.newInner = xmlEncode(d);
-  }
-
-  // Group segments by part once, then splice new inner text back (right-to-left).
+  // Rewrite ONLY the segments that actually changed. `wrap` lets a segment
+  // rebuild surrounding markup (e.g. an XLSX numeric cell becomes an inline
+  // string when its value is replaced); default just uses the escaped text.
   const enc = new TextEncoder();
   const byPart = partModels.map(() => []);
-  for (const s of segments) byPart[s.partIndex].push(s);
-  for (let pi = 0; pi < partModels.length; pi++) {
-    const segs = byPart[pi].sort((a, b) => b.innerStart - a.innerStart);
-    let xml = partModels[pi].xml;
-    for (const s of segs) xml = xml.slice(0, s.innerStart) + s.newInner + xml.slice(s.innerEnd);
-    files.set(partModels[pi].name, enc.encode(xml));
+  for (const s of segments) {
+    const edits = editsBySeg.get(s);
+    if (!edits) continue; // untouched → leave original XML (and pass through)
+    edits.sort((a, b) => b.localStart - a.localStart); // right-to-left
+    let d = s.decoded;
+    for (const e of edits) d = d.slice(0, e.localStart) + e.txt + d.slice(e.localEnd);
+    s.newXml = s.wrap ? s.wrap(xmlEncode(d), s) : xmlEncode(d);
+    byPart[s.partIndex].push(s);
   }
 
-  // Only the modified parts are recompressed; everything else passes through.
-  const modified = new Set(partModels.map((p) => p.name));
+  const modified = new Set(extraModified || []);
+  for (let pi = 0; pi < partModels.length; pi++) {
+    if (byPart[pi].length === 0) continue; // no changes in this part
+    const segs = byPart[pi].sort((a, b) => b.innerStart - a.innerStart);
+    let xml = partModels[pi].xml;
+    for (const s of segs) xml = xml.slice(0, s.innerStart) + s.newXml + xml.slice(s.innerEnd);
+    files.set(partModels[pi].name, enc.encode(xml));
+    modified.add(partModels[pi].name);
+  }
+
+  // Only modified parts are recompressed; everything else passes through.
   const entries = [];
   for (const [name, data] of files) {
     if (!modified.has(name) && raw && raw.has(name)) entries.push({ name, precompressed: raw.get(name) });

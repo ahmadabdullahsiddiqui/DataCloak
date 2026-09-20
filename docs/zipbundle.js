@@ -67,6 +67,17 @@ export async function parseZip(input, onProgress) {
   return { files, raw, subs };
 }
 
+// Names of archive entries that are passed through UNCHANGED (not processed):
+// unsupported types (images, .pdf, …) and any supported file we couldn't read.
+export function zipPassthrough(model) {
+  const processed = new Set(model.subs.map((s) => s.name));
+  const out = [];
+  for (const name of model.files.keys()) {
+    if (!name.endsWith('/') && !processed.has(name)) out.push(name);
+  }
+  return out;
+}
+
 /*
  * analyzeZip(model, options, onProgress) → rows
  * Detects each inner file separately (findings stored file-local on the sub) and

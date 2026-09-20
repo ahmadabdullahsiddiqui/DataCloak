@@ -76,7 +76,10 @@ export async function analyze(buffer, options = {}) {
   const findings = detect(text, options);
   const rows = aggregate(findings, options);
   model = { pages, text, findings };
-  return { rows, findings, pageCount: pdf.numPages };
+  // Pages with no extractable text are likely scanned images — nothing can be
+  // detected there, so redaction can't be guaranteed for them.
+  const emptyTextPages = pages.filter((p) => p.items.length === 0).length;
+  return { rows, findings, pageCount: pdf.numPages, emptyTextPages };
 }
 
 // --- build the redacted PDF --------------------------------------------

@@ -8,7 +8,15 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = '0.5.6';
+  // Anti-clickjacking: frame-ancestors isn't effective from a <meta> tag and this
+  // static host can't set HTTP headers, so bust out of any framing here too.
+  try {
+    if (window.top && window.top !== window.self) window.top.location = window.self.location;
+  } catch {
+    document.documentElement.style.display = 'none'; // cross-origin frame: hide
+  }
+
+  const APP_VERSION = '0.6.0';
 
   // File size is intentionally unlimited (processing is fully local).
   const MAX_BYTES = Infinity;
@@ -31,6 +39,7 @@
   const mappingCsvBtn = $('mappingCsvBtn');
   const mappingJsonBtn = $('mappingJsonBtn');
   const mappingWarn = $('mappingWarn');
+  const cleanWarn = $('cleanWarn');
   const resetBtn = $('resetBtn');
   const toast = $('toast');
 
@@ -39,6 +48,7 @@
   let pdfMod = null;    // lazily imported PDF engine
   let usePdf = false;   // current file is a PDF (handled by pdfMod, not the worker)
   let pdfPageCount = 0;
+  let pdfEmptyPages = 0;
   let fileName = '';
   let rows = []; // [{type,label,value,replacement,count,active}]
   let outputText = '';
@@ -219,6 +229,7 @@
       });
       rows = res.rows || [];
       pdfPageCount = res.pageCount || 0;
+      pdfEmptyPages = res.emptyTextPages || 0;
       renderReview();
       resetAnalyzeBtn();
       hideProgress();
@@ -329,6 +340,8 @@
         outputMime = d.mime || 'text/plain;charset=utf-8';
         outputExt = d.ext || 'txt';
         preview.textContent = d.preview || '';   // capped, untrusted-safe preview
+        if (d.warn) { cleanWarn.textContent = d.warn; cleanWarn.hidden = false; }
+        else cleanWarn.hidden = true;
         resetApplyBtn();
         hideProgress();
         mappingWarn.hidden = true;
@@ -352,6 +365,15 @@
       outputText = `PDF sicher geschwärzt · ${pdfPageCount} Seite(n) · als Bild-PDF exportiert. ` +
         `Der ursprüngliche Text ist im Ergebnis nicht mehr enthalten (nicht markier-/kopierbar).`;
       preview.textContent = outputText;
+      let warn = 'Schwärzung basiert auf erkanntem Text und dessen Position. Bei ungewöhnlichen ' +
+        'Schriftarten, gedrehtem Text oder komplexen Layouts bitte visuell prüfen. Eine vollständige ' +
+        'Schwärzung ist nicht garantiert.';
+      if (pdfEmptyPages > 0) {
+        warn = `⚠️ ${pdfEmptyPages} Seite(n) enthalten keinen erkennbaren Text (vermutlich Scans/Bilder) – ` +
+          `dort konnte NICHTS geschwärzt werden. ${warn}`;
+      }
+      cleanWarn.textContent = warn;
+      cleanWarn.hidden = false;
       resetApplyBtn();
       hideProgress();
       mappingWarn.hidden = true;
@@ -426,6 +448,7 @@
     if (pdfMod) { try { pdfMod.reset(); } catch { /* */ } }
     usePdf = false;
     pdfPageCount = 0;
+    pdfEmptyPages = 0;
     rows = [];
     outputText = '';
     outputBytes = null;
@@ -439,6 +462,7 @@
     stepReview.hidden = true;
     stepResult.hidden = true;
     mappingWarn.hidden = true;
+    cleanWarn.hidden = true;
     window.scrollTo({ top: 0, behavior: 'smooth' });
     showToast('Zurückgesetzt – alle Daten wurden verworfen.');
   }

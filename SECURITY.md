@@ -40,18 +40,23 @@ reinforced by an HTTP header where the host allows it:
 ```
 default-src 'self';
 base-uri 'self';
-script-src 'self';
-style-src 'self' 'unsafe-inline';
-img-src 'self' data:;
+script-src 'self' 'wasm-unsafe-eval';
+style-src 'self';
+img-src 'self' data: blob:;
 font-src 'self';
 media-src 'self';
 connect-src 'self';
-worker-src 'self';
+worker-src 'self' blob:;
 manifest-src 'self';
 object-src 'none';
-form-action 'none';
-frame-ancestors 'none'
+form-action 'none'
 ```
+
+`frame-ancestors` is intentionally NOT in the meta CSP — it is ignored there and
+must be an HTTP response header, which this static host (GitHub Pages) can't set.
+Clickjacking is instead mitigated by a JavaScript frame-buster in `app.js`. On a
+host that can set headers, serve the CSP (with `frame-ancestors 'none'`) as an
+HTTP header for full effect.
 
 The PDF feature relaxes two directives (still **no `unsafe-eval`**):
 `script-src` also allows `'wasm-unsafe-eval'` (pdf.js image decoders) and
@@ -64,7 +69,7 @@ Notes:
   `isEvalSupported: false`.
 - `connect-src 'self'` limits any network call to the app's own origin (static
   assets); no third-party origin is permitted.
-- `style-src` allows `'unsafe-inline'` for pragmatic styling only; scripts do not.
+- `style-src 'self'` — no inline styles in markup; dynamic sizing uses CSSOM.
 - `object-src 'none'` and `form-action 'none'` remove plugin and form-exfiltration vectors.
 
 ## Self-hosting / no CDN
@@ -105,6 +110,31 @@ PDF. The output has **no text objects at all**, so the original text cannot be
 copied or extracted. Trade-off: the result is not selectable text and files are
 larger. Scanned/OCR-only PDFs are rendered and redacted the same way based on any
 embedded text layer; if a PDF has no text layer, nothing is detected to redact.
+
+## Sanitisation scope & residual risk (important)
+
+Detection is **assistive, not exhaustive** — matching and replacing individual
+values does NOT prove a document is fully anonymised. What is and isn't handled:
+
+- **DOCX:** body, headers, footers, foot/endnotes **and comments** are processed;
+  document metadata (author, last-modified-by, title, …) in `docProps` is scrubbed.
+  **Not** inspected: text baked into embedded images, embedded objects/OLE, charts,
+  and other binary parts.
+- **XLSX:** shared strings, worksheet inline strings **and numeric cells** (a
+  replaced numeric cell becomes an inline string) are processed; metadata scrubbed.
+  Formulas are left intact — a formula that *derives* a personal value is not
+  rewritten. Embedded images/objects are not inspected.
+- **PDF:** redaction is based on the detected text layer and its positions. Pages
+  with **no text layer (scans/images)** cannot be detected or redacted; the UI
+  warns and reports how many such pages exist. Unusual fonts, rotated text and
+  complex layouts should be visually verified.
+- **ZIP:** only inner `.txt/.docx/.xlsx` are processed. Unsupported entries
+  (images, `.pdf`, …) are passed through **unchanged**; the UI lists them and warns
+  that they may still contain personal data.
+
+The app surfaces these limits after processing and does not claim guaranteed
+anonymisation. Before production use, validate outputs with a synthetic PII data
+set, inspecting metadata and embedded parts of every generated file.
 
 ## Reporting
 

@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self'; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; form-action 'none'; frame-ancestors 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; media-src 'self'; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>DataCloak — Lokale PII-Anonymisierung im Browser</title>
@@ -93,6 +93,7 @@
   <!-- Step 4: result -->
   <section class="card" id="step-result" hidden>
     <h2>4 · Ergebnis prüfen &amp; herunterladen</h2>
+    <p class="warn" id="cleanWarn" hidden></p>
     <div class="table-wrap">
       <pre class="preview" id="preview"></pre>
     </div>
@@ -114,7 +115,7 @@
 <footer class="foot">
   <p>DataCloak verarbeitet Dokumente lokal in Ihrem Browser – kein Upload, keine externe KI, keine Telemetrie.</p>
   <p class="footer-credit">Made and Designed with <span class="heart">❤</span> by Ahmad Abdullah</p>
-  <p class="footer-meta"><a href="privacy.html">Datenschutz</a> · v<span id="app-version">0.5.6</span></p>
+  <p class="footer-meta"><a href="privacy.html">Datenschutz</a> · v<span id="app-version">0.6.0</span></p>
 </footer>
 
 <div class="toast" id="toast" role="alert" aria-live="polite" hidden></div>

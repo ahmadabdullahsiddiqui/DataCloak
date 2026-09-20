@@ -9,7 +9,11 @@
 import { detect, aggregate, applyReplacements, keyOf } from './detectors.js';
 import { parseDocx, buildDocx } from './docx.js';
 import { parseXlsx, buildXlsx } from './xlsx.js';
-import { parseZip, analyzeZip, buildZip } from './zipbundle.js';
+import { parseZip, analyzeZip, buildZip, zipPassthrough } from './zipbundle.js';
+
+const OFFICE_NOTE = 'Hinweis: Eingebettete Bilder, Objekte, Diagramme und gescannte Inhalte ' +
+  'werden nicht auf Text geprüft. Eine vollständige Anonymisierung ist nicht garantiert – ' +
+  'bitte die Ausgabedatei prüfen.';
 
 const MIME = {
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -71,8 +75,17 @@ async function handle(msg) {
           const n = currentModel.subs.length;
           const preview = `ZIP verarbeitet · ${n} Datei(en) im Archiv anonymisiert/pseudonymisiert · ` +
             `übrige Einträge unverändert.`;
+          const passthrough = zipPassthrough(currentModel);
+          let warn = OFFICE_NOTE;
+          if (passthrough.length) {
+            const shown = passthrough.slice(0, 15).join(', ');
+            const more = passthrough.length > 15 ? ` … (+${passthrough.length - 15} weitere)` : '';
+            warn = `⚠️ ${passthrough.length} Datei(en) im ZIP wurden NICHT bereinigt und unverändert ` +
+              `übernommen (nicht unterstützte Typen wie PDF/Bilder o. Ä.): ${shown}${more}. ` +
+              `Diese können weiterhin personenbezogene Daten enthalten. ${OFFICE_NOTE}`;
+          }
           self.postMessage(
-            { ok: true, type: 'applied', binary: true, ext: 'zip', mime: MIME.zip, output: bytes, preview },
+            { ok: true, type: 'applied', binary: true, ext: 'zip', mime: MIME.zip, output: bytes, preview, warn },
             [bytes.buffer]
           );
           break;
@@ -94,7 +107,7 @@ async function handle(msg) {
           self.postMessage(
             {
               ok: true, type: 'applied', binary: true, ext: currentFormat,
-              mime: MIME[currentFormat], output: bytes, preview,
+              mime: MIME[currentFormat], output: bytes, preview, warn: OFFICE_NOTE,
             },
             [bytes.buffer]
           );
