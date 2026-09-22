@@ -138,4 +138,4 @@ set, inspecting metadata and embedded parts of every generated file.
 
 ## Reporting
 
-Please report security issues to abdullah@powerfolder.com.
+Please report security issues to github.
